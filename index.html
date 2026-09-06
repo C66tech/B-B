@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR 3D Arkanoid - v1.2.0</title>
+    <title>WebXR 3D Arkanoid - v1.3.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -74,7 +74,7 @@
                             ARKANOID 3D XR
                         </h1>
                         <span class="bg-cyan-950 text-cyan-300 text-xs px-2 py-0.5 rounded-full font-mono border border-cyan-500/40">
-                            v1.2.0
+                            v1.3.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300">Ottimizzato per Meta Quest 3 (AR Passthrough &amp; VR) e Desktop</p>
@@ -102,19 +102,19 @@
         <div class="glass-panel p-4 rounded-2xl max-w-sm pointer-events-auto self-start border-l-4 border-l-cyan-400 text-xs text-slate-300">
             <h3 class="font-bold text-cyan-400 mb-1 flex items-center space-x-1.5">
                 <i class="fa-solid fa-gamepad"></i>
-                <span>CONTROLLI &amp; WEBXR:</span>
+                <span>CONTROLLI &amp; WEBXR (v1.3.0):</span>
             </h3>
             <ul class="space-y-1 text-slate-300 list-disc list-inside">
-                <li><strong class="text-white">Quest 3 VR/AR:</strong> Controller Dx sposta il Pad. Punti il raggio laser e premi il Grilletto per cliccare.</li>
-                <li><strong class="text-white">Desktop:</strong> Muovi il mouse per spostare il Pad. Click SX per cliccare i pulsanti.</li>
-                <li><strong class="text-white">Quota $Y=0$:</strong> Allineata al pavimento fisico (Guardian local-floor).</li>
+                <li><strong class="text-white">Sensibilità:</strong> Regolabile dall'HUD 3D (1.0x - 3.5x) per scorrimenti ultrasensibili.</li>
+                <li><strong class="text-white">Quest 3 VR/AR:</strong> Controller Dx sposta il Pad. Raggio laser + Grilletto per cliccare.</li>
+                <li><strong class="text-white">Quota $Y=0$:</strong> Allineata al pavimento fisico (Guardian local-floor). Base a +30 cm.</li>
             </ul>
         </div>
     </div>
 
     <script>
         // --- GAME VERSION CONSTANT ---
-        const VERSION = "v1.2.0";
+        const VERSION = "v1.3.0";
 
         // Toast Notification System (Replacement for forbidden alert)
         function showToast(message, iconClass = "fa-circle-info") {
@@ -185,12 +185,12 @@
 
         const audio = new RetroAudioEngine();
 
-        // --- SPATIAL FIELD CONFIGURATION ---
+        // --- SPATIAL FIELD CONFIGURATION (v1.3.0 Updates) ---
         const FIELD = {
             width: 2.0,       // 2.0 meters wide
             height: 3.0,      // 3.0 meters high
-            depth: 0.30,      // 30 cm depth channel
-            bottomY: 0.50,    // Base elevated 50 cm off physical floor
+            depth: 0.20,      // 20 cm depth channel (v1.3.0)
+            bottomY: 0.30,    // Base lowered to 30 cm off physical floor (v1.3.0)
             get centerY() { return this.bottomY + (this.height / 2); },
             get topY() { return this.bottomY + this.height; },
             zPos: -1.80       // Field placed 1.8 meters in front of player
@@ -199,6 +199,66 @@
         const BRICKS_COLS = 11;
         const BRICKS_ROWS = 5;
         const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88];
+
+        // --- LIGHTWEIGHT BRICK PARTICLE EXPLOSION ENGINE ---
+        class BrickParticleSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.particles = [];
+                // Reuse a single box geometry to optimize GPU memory on Quest 3
+                this.sharedGeo = new THREE.BoxGeometry(0.025, 0.025, 0.025);
+            }
+
+            explode(position, colorHex) {
+                const count = 10; // Lightweight shard count
+                for (let i = 0; i < count; i++) {
+                    const mat = new THREE.MeshBasicMaterial({
+                        color: colorHex,
+                        transparent: true,
+                        opacity: 1.0
+                    });
+                    const pMesh = new THREE.Mesh(this.sharedGeo, mat);
+                    pMesh.position.copy(position);
+
+                    // Random outward velocity
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 2.8,
+                        (Math.random() - 0.2) * 2.5,
+                        (Math.random() - 0.5) * 1.8
+                    );
+
+                    this.scene.add(pMesh);
+                    this.particles.push({
+                        mesh: pMesh,
+                        velocity: velocity,
+                        life: 0.35,      // ~0.35s lifespan
+                        maxLife: 0.35
+                    });
+                }
+            }
+
+            update(dt) {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.life -= dt;
+
+                    if (p.life <= 0) {
+                        this.scene.remove(p.mesh);
+                        p.mesh.material.dispose();
+                        this.particles.splice(i, 1);
+                    } else {
+                        // Apply movement + light gravity
+                        p.mesh.position.addScaledVector(p.velocity, dt);
+                        p.velocity.y -= 4.0 * dt; // gravity
+
+                        // Shrink and fade
+                        const progress = p.life / p.maxLife;
+                        p.mesh.scale.setScalar(Math.max(0.01, progress));
+                        p.mesh.material.opacity = progress;
+                    }
+                }
+            }
+        }
 
         class ArkanoidXRApp {
             constructor() {
@@ -211,6 +271,9 @@
                 this.ballSpeed = 2.2; // m/s
                 this.paddleWidth = 0.40;
                 this.paddleX = 0;
+
+                // Controller Sensitivity Setting (v1.3.0 Feature)
+                this.paddleSensitivity = 2.0; // Default 2.0x for quick responsive moving
 
                 // Telemetry
                 this.fps = 60;
@@ -231,7 +294,8 @@
                 this.initField();
                 this.initPaddleAndBall();
                 this.initLobbyPanel(); // Positioned in front at Z = -1.1m
-                this.initDebugHUD();  // Positioned on Left side
+                this.initDebugHUD();   // Positioned on Left side with Sensitivity Controls
+                this.particleSys = new BrickParticleSystem(this.scene);
                 this.initXRControllers();
                 this.initWebXRButtons();
                 this.initDesktopEvents();
@@ -280,7 +344,7 @@
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Playfield frame wireframe box
+                // Playfield frame wireframe box (v1.3.0 Depth = 0.20m, BottomY = 0.30m)
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
                 const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
@@ -327,7 +391,7 @@
                 const totalW = FIELD.width - margin;
                 const brickW = totalW / BRICKS_COLS - 0.01;
                 const brickH = 0.12;
-                const brickD = FIELD.depth - 0.08;
+                const brickD = FIELD.depth - 0.04;
 
                 const startX = -totalW / 2 + brickW / 2;
                 const startY = FIELD.topY - 0.25;
@@ -359,6 +423,7 @@
                             active: true,
                             row: r,
                             col: c,
+                            colorHex: colorHex,
                             w: brickW,
                             h: brickH,
                             d: brickD,
@@ -372,7 +437,7 @@
 
             initPaddleAndBall() {
                 // Paddle
-                const pGeo = new THREE.BoxGeometry(this.paddleWidth, 0.08, 0.20);
+                const pGeo = new THREE.BoxGeometry(this.paddleWidth, 0.08, FIELD.depth);
                 const pMat = new THREE.MeshStandardMaterial({
                     color: 0x00f0ff,
                     emissive: 0x0088bb,
@@ -519,6 +584,44 @@
                 this.hudMesh.rotation.y = Math.PI / 180 * 30; // Angled towards center
 
                 this.scene.add(this.hudMesh);
+
+                // --- 3D Interactive HUD Buttons (v1.3.0 Sensitivity Controls) ---
+                const makeHUDButton = (label, xPos, yPos, action) => {
+                    const bGeo = new THREE.BoxGeometry(0.24, 0.08, 0.03);
+                    const bMat = new THREE.MeshStandardMaterial({
+                        color: 0x00d8ff,
+                        emissive: 0x005588,
+                        emissiveIntensity: 0.5,
+                        metalness: 0.8
+                    });
+                    const btn = new THREE.Mesh(bGeo, bMat);
+                    btn.position.set(xPos, yPos, 0.02);
+                    btn.userData = { action: action };
+
+                    const c = document.createElement('canvas');
+                    c.width = 256; c.height = 80;
+                    const cCtx = c.getContext('2d');
+                    cCtx.fillStyle = '#00d8ff'; cCtx.fillRect(0,0,256,80);
+                    cCtx.fillStyle = '#000000'; cCtx.font = 'bold 32px sans-serif';
+                    cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
+                    cCtx.fillText(label, 128, 40);
+
+                    const lMesh = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.23, 0.07),
+                        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true })
+                    );
+                    lMesh.position.z = 0.016;
+                    btn.add(lMesh);
+
+                    // Add button as child of HUD mesh
+                    this.hudMesh.add(btn);
+                    this.interactiveObjects.push(btn);
+                };
+
+                // Add Sensitivity Buttons on lower part of HUD
+                makeHUDButton("SENS -", -0.28, -0.25, 'SENS_DOWN');
+                makeHUDButton("SENS +", 0.28, -0.25, 'SENS_UP');
+
                 this.renderHUDCanvas();
             }
 
@@ -568,10 +671,16 @@
                 ctx.fillText(`MATTONI RIMS : ${activeBricks} / 55`, 80, 410);
                 ctx.fillText(`VEL. PALLA   : ${this.ballSpeed.toFixed(1)} m/s`, 80, 460);
 
+                // Controller Sensitivity Display (v1.3.0 Feature)
+                ctx.fillStyle = '#00d8ff';
+                ctx.font = 'bold 32px monospace';
+                ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x`, 80, 520);
+
                 ctx.fillStyle = '#64748b';
                 ctx.font = '22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Tracciamento Quota Y=0 (local-floor) Attivo', w / 2, 960);
+                ctx.fillText('Usa i tasti SENS - / SENS + sotto per regolare lo spostamento Pad', w / 2, 720);
+                ctx.fillText('Tracciamento Quota Y=0 (local-floor) Attivo - Base +30cm', w / 2, 960);
 
                 this.hudTexture.needsUpdate = true;
             }
@@ -642,7 +751,7 @@
                     const session = await navigator.xr.requestSession(mode, sessionInit);
                     this.renderer.xr.setSession(session);
 
-                    // KEY FIX: Clear background in AR mode for Meta Quest 3 passthrough!
+                    // Passthrough background configuration for AR mode
                     if (mode === 'immersive-ar') {
                         this.scene.background = null;
                         this.floorGrid.visible = false;
@@ -676,13 +785,33 @@
 
                 const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
                 if (intersects.length > 0) {
-                    audio.uiClick();
-                    this.startGame();
-                    return;
+                    let hitObj = intersects[0].object;
+                    while (hitObj && !hitObj.userData.action && hitObj.parent) {
+                        hitObj = hitObj.parent;
+                    }
+                    if (hitObj && hitObj.userData.action) {
+                        audio.uiClick();
+                        this.handleAction(hitObj.userData.action);
+                        return;
+                    }
                 }
 
                 if (this.gameState === 'LOBBY' || this.gameState === 'GAMEOVER') {
                     this.startGame();
+                }
+            }
+
+            handleAction(action) {
+                if (action === 'START_GAME') {
+                    this.startGame();
+                } else if (action === 'SENS_DOWN') {
+                    this.paddleSensitivity = Math.max(1.0, this.paddleSensitivity - 0.5);
+                    this.renderHUDCanvas();
+                    showToast(`Sensibilità Pad: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
+                } else if (action === 'SENS_UP') {
+                    this.paddleSensitivity = Math.min(3.5, this.paddleSensitivity + 0.5);
+                    this.renderHUDCanvas();
+                    showToast(`Sensibilità Pad: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
                 }
             }
 
@@ -696,7 +825,8 @@
                 window.addEventListener('mousemove', (e) => {
                     if (!this.renderer.xr.isPresenting) {
                         const normX = (e.clientX / window.innerWidth) * 2 - 1;
-                        this.paddleX = normX * (FIELD.width / 2);
+                        // Multiply mouse displacement by paddleSensitivity
+                        this.paddleX = normX * (FIELD.width / 2) * (this.paddleSensitivity / 1.5);
                     }
                 });
 
@@ -711,9 +841,18 @@
                     const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
 
                     if (intersects.length > 0) {
-                        audio.uiClick();
-                        this.startGame();
-                    } else if (this.gameState === 'LOBBY') {
+                        let hitObj = intersects[0].object;
+                        while (hitObj && !hitObj.userData.action && hitObj.parent) {
+                            hitObj = hitObj.parent;
+                        }
+                        if (hitObj && hitObj.userData.action) {
+                            audio.uiClick();
+                            this.handleAction(hitObj.userData.action);
+                            return;
+                        }
+                    }
+
+                    if (this.gameState === 'LOBBY') {
                         this.startGame();
                     }
                 });
@@ -802,6 +941,10 @@
                     const brickBox = new THREE.Box3().setFromObject(b);
                     if (brickBox.intersectsBox(ballBox)) {
                         b.visible = false;
+
+                        // Trigger Lightweight Particle Explosion (v1.3.0 Feature)
+                        this.particleSys.explode(b.position, b.userData.colorHex);
+
                         this.bricksGroup.remove(b);
                         b.geometry.dispose();
                         b.material.dispose();
@@ -828,10 +971,10 @@
                 const maxClampedX = FIELD.width / 2 - halfPad;
 
                 if (this.renderer.xr.isPresenting) {
-                    // Drive paddle with Right VR Controller position
+                    // Drive paddle with Right VR Controller position multiplied by sensitivity
                     const rightController = this.controllers[1];
                     if (rightController) {
-                        this.paddleX = rightController.position.x;
+                        this.paddleX = rightController.position.x * this.paddleSensitivity;
                     }
                 }
 
@@ -855,6 +998,9 @@
 
                 this.updatePaddlePosition();
                 this.updatePhysics(dt);
+
+                // Update brick explosion particles
+                this.particleSys.update(dt);
 
                 // Pulse light intensity
                 if (this.ballLight) {
