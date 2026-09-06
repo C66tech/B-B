@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.1.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v2.2.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.1.0
+                            v2.2.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">Esperienza Arcade WebXR 3D (AR Passthrough &amp; VR Immersivo)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.1.0";
+        const VERSION = "v2.2.0";
 
         // Toast Notification System
         function showToast(message, iconClass = "fa-circle-info") {
@@ -158,6 +158,12 @@
             wallHit() { this.playTone(210, 'sine', 0.06, 0.14); }
             brickHit(row = 0) { this.playTone(380 + (row * 60), 'square', 0.08, 0.25); }
             speedBoost() { this.playTone(880, 'sine', 0.12, 0.2); }
+            powerUpPickup() {
+                [523, 659, 783, 1046].forEach((f, idx) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.1, 0.2), idx * 60);
+                });
+            }
+            laserShot() { this.playTone(900, 'sawtooth', 0.05, 0.18); }
             levelUp() {
                 [523, 659, 783, 1046].forEach((f, idx) => {
                     setTimeout(() => this.playTone(f, 'sine', 0.15, 0.22), idx * 100);
@@ -179,7 +185,7 @@
                 });
             }
             countdownTick() { this.playTone(600, 'sine', 0.08, 0.2); }
-            countdownGo() { this.playTone(1200, 'sine', 0.2, 0.25); }
+            countdownGo() { this.playTone(1200, 'sine', 0.65, 0.30); } // Longer final beep
         }
 
         const audio = new RetroAudioEngine();
@@ -193,11 +199,11 @@
 
         const FIELD = {
             width: 1.76,      // 13 bricks of 12 cm + gaps + padding
-            height: 2.35,     // Reduced height to 2.35m
+            height: 2.10,     // Reduced field height to 2.10m
             depth: 0.10,      // 10 cm field depth channel
-            bottomY: 0.40,    // Base height raised to 40 cm off physical floor
-            get centerY() { return this.bottomY + (this.height / 2); }, // 1.575m
-            get topY() { return this.bottomY + this.height; },         // 2.75m
+            bottomY: 0.25,    // Base height reduced to 25 cm off physical floor
+            get centerY() { return this.bottomY + (this.height / 2); }, // 1.30m
+            get topY() { return this.bottomY + this.height; },         // 2.35m
             zPos: -1.80       // Field placed 1.8 meters in front of user
         };
 
@@ -285,12 +291,18 @@
                 this.baseBallSpeed = 1.8;
                 this.speedMultiplier = 1.0;
                 this.totalBricksHitInLife = 0;
-                this.paddleWidth = 0.38;
+                this.paddleWidth = 0.38 * 0.90; // Paddle length reduced by 10% (0.342m)
                 this.paddleX = 0;
 
                 // Countdown State
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
+
+                // Power-up State
+                this.activePowerUps = [];
+                this.bullets = [];
+                this.fireTimer = 0;
+                this.lastShotTimer = 0;
 
                 // Control Mode & Handedness
                 this.controlMode = 'RAY';
@@ -371,7 +383,7 @@
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Frame wireframe box (2.35m height x 1.76m width x 0.10m depth)
+                // Frame wireframe box (2.10m height x 1.76m width x 0.10m depth)
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
                 const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
@@ -457,19 +469,19 @@
             }
 
             initPaddleAndBall() {
-                // Paddle
+                // Paddle (Reduced length by 10%: 0.342m)
                 const pGeo = new THREE.BoxGeometry(this.paddleWidth, 0.06, FIELD.depth);
-                const pMat = new THREE.MeshStandardMaterial({
+                this.paddleMat = new THREE.MeshStandardMaterial({
                     color: 0x00f0ff,
                     emissive: 0x0088bb,
                     metalness: 0.9,
                     roughness: 0.1
                 });
-                this.paddleMesh = new THREE.Mesh(pGeo, pMat);
+                this.paddleMesh = new THREE.Mesh(pGeo, this.paddleMat);
                 this.paddleMesh.position.set(0, FIELD.bottomY + 0.15, 0);
                 this.fieldGroup.add(this.paddleMesh);
 
-                // Ball: CUBE with side 6 cm (0.06 m) - Fixed rotation
+                // Ball: CUBE with side 6 cm (0.06 m)
                 const ballSide = 0.06;
                 const bGeo = new THREE.BoxGeometry(ballSide, ballSide, ballSide);
                 const bMat = new THREE.MeshStandardMaterial({
@@ -489,6 +501,54 @@
                 this.resetBallAndPaddle();
             }
 
+            // --- POWERUP CREATION HELPER ---
+            spawnPowerUp(position) {
+                // 10% chance to release a bonus
+                if (Math.random() > 0.10) return;
+
+                const type = Math.random() < 0.5 ? 'S' : 'F'; // 50% Speed (Slow), 50% Fire
+                const c = document.createElement('canvas');
+                c.width = 128; c.height = 128;
+                const ctx = c.getContext('2d');
+
+                ctx.fillStyle = type === 'S' ? '#00f0ff' : '#ff3300';
+                ctx.fillRect(0, 0, 128, 128);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 10;
+                ctx.strokeRect(5, 5, 118, 118);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 85px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(type, 64, 64);
+
+                const tex = new THREE.CanvasTexture(c);
+                const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+                const mat = new THREE.MeshStandardMaterial({
+                    map: tex,
+                    emissive: type === 'S' ? 0x00f0ff : 0xff3300,
+                    emissiveIntensity: 0.6
+                });
+
+                const pMesh = new THREE.Mesh(geo, mat);
+                pMesh.position.copy(position);
+                pMesh.userData = { type: type };
+
+                this.fieldGroup.add(pMesh);
+                this.activePowerUps.push(pMesh);
+            }
+
+            shootLaser() {
+                const geo = new THREE.CylinderGeometry(0.008, 0.008, 0.08);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xff3300 });
+                const bullet = new THREE.Mesh(geo, mat);
+                bullet.position.set(this.paddleMesh.position.x, this.paddleMesh.position.y + 0.04, 0);
+                this.fieldGroup.add(bullet);
+                this.bullets.push(bullet);
+                audio.laserShot();
+            }
+
             // --- AUDIO-ONLY COUNTDOWN ---
             startLevelCountdown(onComplete) {
                 if (this.countdownTimer) clearInterval(this.countdownTimer);
@@ -503,7 +563,7 @@
                     if (count > 0) {
                         audio.countdownTick();
                     } else if (count === 0) {
-                        audio.countdownGo();
+                        audio.countdownGo(); // Extended final beep
                     } else {
                         clearInterval(this.countdownTimer);
                         this.countdownTimer = null;
@@ -513,12 +573,34 @@
                 }, 1000);
             }
 
+            clearPowerUpsAndBullets() {
+                this.activePowerUps.forEach(p => {
+                    this.fieldGroup.remove(p);
+                    p.geometry.dispose();
+                    p.material.dispose();
+                });
+                this.activePowerUps = [];
+
+                this.bullets.forEach(b => {
+                    this.fieldGroup.remove(b);
+                    b.geometry.dispose();
+                    b.material.dispose();
+                });
+                this.bullets = [];
+
+                this.fireTimer = 0;
+                if (this.paddleMat) {
+                    this.paddleMat.emissive.setHex(0x0088bb);
+                }
+            }
+
             resetBallAndPaddle() {
                 this.paddleX = 0;
                 this.paddleMesh.position.x = 0;
                 this.ballMesh.position.set(0, FIELD.bottomY + 0.30, 0);
-                this.ballMesh.rotation.set(0, 0, 0); // Reset cube rotation to straight
+                this.ballMesh.rotation.set(0, 0, 0);
                 this.ballVel.set(0, 0, 0);
+                this.clearPowerUpsAndBullets();
             }
 
             launchBall() {
@@ -734,7 +816,10 @@
                 ctx.fillStyle = '#38bdf8';
                 ctx.fillText(`CONTROLLER   : MANO ${this.activeHand}`, 80, 500);
 
-                if (this.controlMode === 'TILT') {
+                if (this.fireTimer > 0) {
+                    ctx.fillStyle = '#ff3300';
+                    ctx.fillText(`BONUS FUOCO  : ${this.fireTimer.toFixed(1)}s`, 80, 550);
+                } else if (this.controlMode === 'TILT') {
                     ctx.fillStyle = '#00f0ff';
                     ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (ATTIVA)`, 80, 550);
                 } else {
@@ -973,7 +1058,6 @@
                 this.resetBallAndPaddle();
                 this.renderHUDCanvas();
 
-                // Audio-only countdown before launching ball
                 this.startLevelCountdown(() => {
                     this.launchBall();
                 });
@@ -1013,6 +1097,121 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive) return;
 
+                // Handle Active Fire Power-Up
+                if (this.fireTimer > 0) {
+                    this.fireTimer -= dt;
+                    this.lastShotTimer += dt;
+                    if (this.lastShotTimer >= 0.25) { // Auto-fire every 250ms
+                        this.shootLaser();
+                        this.lastShotTimer = 0;
+                    }
+                    if (this.fireTimer <= 0) {
+                        this.fireTimer = 0;
+                        this.paddleMat.emissive.setHex(0x0088bb);
+                        showToast('Modalità Fuoco Terminata', 'fa-fire-extinguisher');
+                    }
+                    this.renderHUDCanvas();
+                }
+
+                // Update Falling Power-Ups
+                const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
+                for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
+                    const p = this.activePowerUps[i];
+                    p.position.y -= 0.85 * dt; // Fall speed
+                    p.rotation.y += dt * 3.0;
+
+                    const pBox = new THREE.Box3().setFromObject(p);
+                    if (pBox.intersectsBox(padBox)) {
+                        // Bonus Collected!
+                        audio.powerUpPickup();
+                        const type = p.userData.type;
+
+                        if (type === 'S') {
+                            // "S" Speed: reduce speed by 3 levels
+                            this.speedMultiplier = Math.max(1.0, this.speedMultiplier - 0.24);
+                            if (this.ballVel.length() > 0) {
+                                this.ballVel.normalize().multiplyScalar(this.baseBallSpeed * this.speedMultiplier);
+                            }
+                            showToast('⚡ BONUS S: Velocità ridotta di 3 livelli!', 'fa-gauge-simple-low');
+                        } else if (type === 'F') {
+                            // "F" Fire: activate lasers for 8 seconds
+                            this.fireTimer = 8.0;
+                            this.paddleMat.emissive.setHex(0xff3300);
+                            showToast('🔥 BONUS F: Modalità Fuoco Attiva per 8 sec!', 'fa-fire');
+                        }
+
+                        this.fieldGroup.remove(p);
+                        p.geometry.dispose();
+                        p.material.dispose();
+                        this.activePowerUps.splice(i, 1);
+                        this.renderHUDCanvas();
+                        continue;
+                    }
+
+                    // Remove if fallen below floor base
+                    if (p.position.y < FIELD.bottomY) {
+                        this.fieldGroup.remove(p);
+                        p.geometry.dispose();
+                        p.material.dispose();
+                        this.activePowerUps.splice(i, 1);
+                    }
+                }
+
+                // Update Laser Bullets
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const bullet = this.bullets[i];
+                    bullet.position.y += 4.5 * dt;
+
+                    if (bullet.position.y > FIELD.topY) {
+                        this.fieldGroup.remove(bullet);
+                        bullet.geometry.dispose();
+                        bullet.material.dispose();
+                        this.bullets.splice(i, 1);
+                        continue;
+                    }
+
+                    const bulletBox = new THREE.Box3().setFromObject(bullet);
+                    const bricks = this.bricksGroup.children;
+                    let bulletHit = false;
+
+                    for (let j = bricks.length - 1; j >= 0; j--) {
+                        const b = bricks[j];
+                        if (!b.visible) continue;
+
+                        const brickBox = new THREE.Box3().setFromObject(b);
+                        if (brickBox.intersectsBox(bulletBox)) {
+                            b.visible = false;
+                            this.particlePool.explode(b.position, b.userData.colorHex);
+
+                            // 10% bonus spawn
+                            this.spawnPowerUp(b.position);
+
+                            this.bricksGroup.remove(b);
+                            b.geometry.dispose();
+                            b.material.dispose();
+
+                            this.score += b.userData.points;
+                            audio.brickHit(b.userData.row);
+
+                            bulletHit = true;
+
+                            if (this.bricksGroup.children.length === 0) {
+                                this.advanceLevel();
+                            } else {
+                                this.renderHUDCanvas();
+                            }
+                            break;
+                        }
+                    }
+
+                    if (bulletHit) {
+                        this.fieldGroup.remove(bullet);
+                        bullet.geometry.dispose();
+                        bullet.material.dispose();
+                        this.bullets.splice(i, 1);
+                    }
+                }
+
                 // Move Cube-Ball
                 this.ballMesh.position.x += this.ballVel.x * dt;
                 this.ballMesh.position.y += this.ballVel.y * dt;
@@ -1031,7 +1230,7 @@
                     audio.wallHit();
                 }
 
-                // Ceiling bounce (2.35m height topY = 2.75m)
+                // Ceiling bounce
                 if (this.ballMesh.position.y + halfCube >= FIELD.topY) {
                     this.ballMesh.position.y = FIELD.topY - halfCube;
                     this.ballVel.y = -Math.abs(this.ballVel.y);
@@ -1056,7 +1255,6 @@
                         this.resetBallAndPaddle();
                         this.renderHUDCanvas();
 
-                        // Start Countdown on life loss
                         this.startLevelCountdown(() => {
                             this.launchBall();
                         });
@@ -1065,7 +1263,6 @@
                 }
 
                 // Paddle collision
-                const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
                 const ballBox = new THREE.Box3().setFromObject(this.ballMesh);
 
                 if (padBox.intersectsBox(ballBox) && this.ballVel.y < 0) {
@@ -1089,6 +1286,9 @@
                         b.visible = false;
 
                         this.particlePool.explode(b.position, b.userData.colorHex);
+
+                        // 10% chance powerup drop
+                        this.spawnPowerUp(b.position);
 
                         this.bricksGroup.remove(b);
                         b.geometry.dispose();
