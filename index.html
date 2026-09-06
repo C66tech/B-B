@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.4.1 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v2.5.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.4.1
+                            v2.5.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.4.1";
+        const VERSION = "v2.5.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -468,7 +468,6 @@
             }
 
             buildBricksForLevel(levelNum) {
-                // FIX CRITICO: Rimozione reale dall'Object3D per evitare mattoni fantasma!
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children[0];
                     this.bricksGroup.remove(b);
@@ -506,6 +505,8 @@
                     removedSet.add(`${pair.r}_${BRICKS_COLS - 1 - pair.c}`);
                 }
 
+                const createdBricks = [];
+
                 for (let r = 0; r < rows; r++) {
                     const colorHex = ROW_COLORS[r % ROW_COLORS.length];
                     const y = startY - r * (brickH + 0.012);
@@ -528,10 +529,43 @@
 
                         mesh.userData = {
                             active: true, row: r, col: c, colorHex: colorHex,
-                            points: (rows - r) * 10
+                            points: (rows - r) * 10,
+                            hasBonus: null // Will be assigned below
                         };
                         this.bricksGroup.add(mesh);
+                        createdBricks.push(mesh);
                     }
+                }
+
+                // --- UNIFORM & DETERMINISTIC POWER-UP PRE-ALLOCATION ---
+                // Exactly 3 + int(level / 2) bonuses assigned to random bricks
+                const numBonuses = 3 + Math.floor(levelNum / 2);
+                const availableIndices = createdBricks.map((_, idx) => idx);
+
+                // Shuffle available brick indices using deterministic PRNG
+                for (let i = availableIndices.length - 1; i > 0; i--) {
+                    const j = Math.floor(this.prng.next() * (i + 1));
+                    const temp = availableIndices[i];
+                    availableIndices[i] = availableIndices[j];
+                    availableIndices[j] = temp;
+                }
+
+                const countToAssign = Math.min(numBonuses, createdBricks.length);
+                for (let i = 0; i < countToAssign; i++) {
+                    const targetBrick = createdBricks[availableIndices[i]];
+                    
+                    // Rarity Roll: L = 10% (Rare), S = 45%, F = 45%
+                    const roll = this.prng.next();
+                    let bonusType = 'F';
+                    if (roll < 0.10) {
+                        bonusType = 'L'; // Extra Life (Rare)
+                    } else if (roll < 0.55) {
+                        bonusType = 'S'; // Speed Slow
+                    } else {
+                        bonusType = 'F'; // Fire Lasers
+                    }
+
+                    targetBrick.userData.hasBonus = bonusType;
                 }
             }
 
@@ -562,26 +596,40 @@
                 this.resetBallAndPaddle();
             }
 
-            setPaddleBonusState(isFire) {
-                this.isFireActive = isFire;
-                if (isFire) {
+            setPaddleBonusState(bonusType) {
+                // bonusType: 'FIRE', 'SPEED', 'LIFE', or false/'NONE'
+                if (bonusType === 'FIRE' || bonusType === true) {
+                    this.isFireActive = true;
                     this.paddleMat.color.setHex(0xff3300);
                     this.paddleMat.emissive.setHex(0x991100);
+                } else if (bonusType === 'SPEED') {
+                    this.isFireActive = false;
+                    this.paddleMat.color.setHex(0x00f0ff);
+                    this.paddleMat.emissive.setHex(0x0077aa);
+                } else if (bonusType === 'LIFE') {
+                    this.isFireActive = false;
+                    this.paddleMat.color.setHex(0x00ff88);
+                    this.paddleMat.emissive.setHex(0x008844);
                 } else {
+                    this.isFireActive = false;
                     this.paddleMat.color.setHex(0xffffff);
                     this.paddleMat.emissive.setHex(0x333333);
                 }
             }
 
-            spawnPowerUp(position) {
-                if (Math.random() > 0.10) return;
+            spawnPowerUp(position, type) {
+                if (!type) return;
 
-                const type = Math.random() < 0.5 ? 'S' : 'F';
                 const c = document.createElement('canvas');
                 c.width = 128; c.height = 128;
                 const ctx = c.getContext('2d');
 
-                ctx.fillStyle = type === 'S' ? '#00f0ff' : '#ff3300';
+                let colorHex = '#ff3300';
+                let emissiveHex = 0xff3300;
+                if (type === 'S') { colorHex = '#00f0ff'; emissiveHex = 0x00f0ff; }
+                else if (type === 'L') { colorHex = '#00ff88'; emissiveHex = 0x00ff88; }
+
+                ctx.fillStyle = colorHex;
                 ctx.fillRect(0, 0, 128, 128);
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 10;
@@ -596,7 +644,7 @@
                 const tex = new THREE.CanvasTexture(c);
                 const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
                 const mat = new THREE.MeshStandardMaterial({
-                    map: tex, emissive: type === 'S' ? 0x00f0ff : 0xff3300, emissiveIntensity: 0.6
+                    map: tex, emissive: emissiveHex, emissiveIntensity: 0.6
                 });
 
                 const pMesh = new THREE.Mesh(geo, mat);
@@ -848,7 +896,7 @@
                 ctx.fillStyle = '#00ff88'; ctx.fillText(`SCORE        : ${this.score.toString().padStart(6, '0')}`, 80, 300);
                 ctx.fillStyle = '#ff2a55';
                 const hearts = '❤️ '.repeat(Math.max(0, this.lives));
-                ctx.fillText(`LIVES LEFT   : ${hearts} (${this.lives}/3)`, 80, 350);
+                ctx.fillText(`LIVES LEFT   : ${hearts} (${this.lives})`, 80, 350);
 
                 const activeBricks = this.bricksGroup ? this.bricksGroup.children.length : 0;
                 ctx.fillStyle = '#00f0ff'; ctx.fillText(`BRICKS LEFT  : ${activeBricks}`, 80, 400);
@@ -1093,10 +1141,10 @@
                         audio.powerUpPickup();
                         const type = p.userData.type;
 
-                        // FIX OVERRIDE BONUS: Il nuovo bonus spegne e annulla sempre il precedente!
+                        // OVERRIDE ABSOLUTO: Il nuovo bonus disattiva sempre quello precedente
                         if (type === 'S') {
                             this.fireTimer = 0;
-                            this.setPaddleBonusState(false); 
+                            this.setPaddleBonusState('SPEED'); 
                             
                             const speedReductionFactor = Math.pow(1.05, 3);
                             this.speedMultiplier = Math.max(1.0, this.speedMultiplier / speedReductionFactor);
@@ -1106,8 +1154,13 @@
                             showToast('⚡ BONUS S: Speed Decremented by 3 Steps!', 'fa-gauge-simple-low');
                         } else if (type === 'F') {
                             this.fireTimer = 8.0;
-                            this.setPaddleBonusState(true);
+                            this.setPaddleBonusState('FIRE');
                             showToast('🔥 BONUS F: Fire Mode Active! Pull Trigger to Shoot', 'fa-fire');
+                        } else if (type === 'L') {
+                            this.fireTimer = 0;
+                            this.setPaddleBonusState('LIFE');
+                            this.lives++;
+                            showToast('❤️ BONUS L: Extra Life Added!', 'fa-heart');
                         }
 
                         this.fieldGroup.remove(p);
@@ -1147,17 +1200,20 @@
                         if (brickBox.intersectsBox(bulletBox)) {
                             b.visible = false;
                             this.particlePool.explode(b.position, b.userData.colorHex);
-                            this.spawnPowerUp(b.position);
+                            
+                            if (b.userData.hasBonus) {
+                                this.spawnPowerUp(b.position, b.userData.hasBonus);
+                            }
+
                             this.bricksGroup.remove(b);
                             b.geometry.dispose(); b.material.dispose();
                             this.score += b.userData.points;
                             audio.gunshot();
                             bulletHit = true;
                             
-                            // FIX CRITICO: RACE CONDITION PALLA/PROIETTILE
                             if (this.bricksGroup.children.length === 0) {
                                 this.advanceLevel();
-                                return; // STOP Physics immediato
+                                return;
                             } else {
                                 this.renderHUDCanvas();
                             }
@@ -1217,7 +1273,11 @@
                     if (brickBox.intersectsBox(ballBox)) {
                         b.visible = false;
                         this.particlePool.explode(b.position, b.userData.colorHex);
-                        this.spawnPowerUp(b.position);
+                        
+                        if (b.userData.hasBonus) {
+                            this.spawnPowerUp(b.position, b.userData.hasBonus);
+                        }
+
                         this.bricksGroup.remove(b);
                         b.geometry.dispose(); b.material.dispose();
                         this.ballVel.y = -this.ballVel.y;
@@ -1233,10 +1293,9 @@
                             showToast(`⚡ SPEED UP! Ball Speed: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
                         }
 
-                        // FIX CRITICO: RACE CONDITION PALLA/PROIETTILE
                         if (this.bricksGroup.children.length === 0) {
                             this.advanceLevel();
-                            return; // STOP Physics immediato
+                            return;
                         } else {
                             this.renderHUDCanvas();
                         }
