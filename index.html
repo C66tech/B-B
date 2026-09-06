@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.5.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v2.6.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.5.0
+                            v2.6.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.5.0";
+        const VERSION = "v2.6.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -362,6 +362,9 @@
                 this.paddleWidth = 0.38 * 0.90; 
                 this.paddleX = 0;
 
+                // Transition Lock to prevent race condition bugs on level advance
+                this.isLevelTransitioning = false;
+
                 // Countdown State
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
@@ -467,23 +470,45 @@
                 this.scene.add(this.fieldGroup);
             }
 
+            getRemainingBricksCount() {
+                let count = 0;
+                if (!this.bricksGroup) return 0;
+                for (let i = 0; i < this.bricksGroup.children.length; i++) {
+                    const b = this.bricksGroup.children[i];
+                    if (b && b.visible && b.userData && b.userData.active) {
+                        count++;
+                    }
+                }
+                return count;
+            }
+
             buildBricksForLevel(levelNum) {
+                // Complete deep disposal of graphics and edge meshes
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children[0];
                     this.bricksGroup.remove(b);
-                    if (b.geometry) b.geometry.dispose();
-                    if (b.material) b.material.dispose();
+                    b.traverse((child) => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(m => m.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    });
                 }
 
-                const rows = Math.min(6, 3 + Math.floor((levelNum + 1) / 2));
+                // RIGHE PER LIVELLO: Strictly 3 + int(n/2) as requested
+                const rows = 3 + Math.floor(levelNum / 2);
                 const brickW = BRICK_W;
                 const brickH = BRICK_H;
                 const brickD = BRICK_D;
                 const totalBricksW = (BRICKS_COLS * brickW) + ((BRICKS_COLS - 1) * GAP_X);
                 const startX = -totalBricksW / 2 + brickW / 2;
-                const startY = FIELD.topY - 0.22;
+                const startY = FIELD.topY - 0.18;
 
-                const pairsToRemove = Math.min(levelNum, Math.floor((rows * 6)));
+                const pairsToRemove = Math.min(levelNum, Math.floor((rows * (BRICKS_COLS - 1)) / 2));
                 const allPairs = [];
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < Math.floor(BRICKS_COLS / 2); c++) {
@@ -530,19 +555,17 @@
                         mesh.userData = {
                             active: true, row: r, col: c, colorHex: colorHex,
                             points: (rows - r) * 10,
-                            hasBonus: null // Will be assigned below
+                            hasBonus: null
                         };
                         this.bricksGroup.add(mesh);
                         createdBricks.push(mesh);
                     }
                 }
 
-                // --- UNIFORM & DETERMINISTIC POWER-UP PRE-ALLOCATION ---
-                // Exactly 3 + int(level / 2) bonuses assigned to random bricks
+                // BONUS DISTRIBUTION: 3 + int(n/2) bonuses uniformly pre-allocated at level start
                 const numBonuses = 3 + Math.floor(levelNum / 2);
                 const availableIndices = createdBricks.map((_, idx) => idx);
 
-                // Shuffle available brick indices using deterministic PRNG
                 for (let i = availableIndices.length - 1; i > 0; i--) {
                     const j = Math.floor(this.prng.next() * (i + 1));
                     const temp = availableIndices[i];
@@ -554,15 +577,14 @@
                 for (let i = 0; i < countToAssign; i++) {
                     const targetBrick = createdBricks[availableIndices[i]];
                     
-                    // Rarity Roll: L = 10% (Rare), S = 45%, F = 45%
                     const roll = this.prng.next();
                     let bonusType = 'F';
                     if (roll < 0.10) {
-                        bonusType = 'L'; // Extra Life (Rare)
+                        bonusType = 'L'; // Rare Extra Life
                     } else if (roll < 0.55) {
-                        bonusType = 'S'; // Speed Slow
+                        bonusType = 'S'; // Speed Reduction
                     } else {
-                        bonusType = 'F'; // Fire Lasers
+                        bonusType = 'F'; // Fire Mode
                     }
 
                     targetBrick.userData.hasBonus = bonusType;
@@ -597,7 +619,6 @@
             }
 
             setPaddleBonusState(bonusType) {
-                // bonusType: 'FIRE', 'SPEED', 'LIFE', or false/'NONE'
                 if (bonusType === 'FIRE' || bonusType === true) {
                     this.isFireActive = true;
                     this.paddleMat.color.setHex(0xff3300);
@@ -898,7 +919,7 @@
                 const hearts = '❤️ '.repeat(Math.max(0, this.lives));
                 ctx.fillText(`LIVES LEFT   : ${hearts} (${this.lives})`, 80, 350);
 
-                const activeBricks = this.bricksGroup ? this.bricksGroup.children.length : 0;
+                const activeBricks = this.getRemainingBricksCount();
                 ctx.fillStyle = '#00f0ff'; ctx.fillText(`BRICKS LEFT  : ${activeBricks}`, 80, 400);
                 ctx.fillStyle = '#ff00d4';
                 const modeText = this.controlMode === 'RAY' ? 'RAY (1:1 Intersection)' : 'TILT (Wrist Tilt)';
@@ -996,7 +1017,7 @@
                     }
                 }
 
-                if (this.gameState === 'PLAYING' && !this.isCountdownActive && this.isFireActive) {
+                if (this.gameState === 'PLAYING' && !this.isCountdownActive && this.isFireActive && !this.isLevelTransitioning) {
                     this.shootDoubleLasers();
                 }
             }
@@ -1070,6 +1091,7 @@
                 this.gameState = 'PLAYING';
                 this.level = 1; this.score = 0; this.lives = 3; this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
                 this.showLasersInGame = false;
+                this.isLevelTransitioning = false;
                 this.lobbyGroup.visible = false;
                 this.gameOverGroup.visible = false;
 
@@ -1080,23 +1102,31 @@
             }
 
             advanceLevel() {
+                if (this.isLevelTransitioning) return;
+                this.isLevelTransitioning = true;
+
                 this.level++;
                 if (this.level > MAX_LEVELS) {
                     this.gameState = 'VICTORY'; audio.gameWin();
                     showToast('VICTORY! All 10 levels completed!', 'fa-trophy');
                     this.returnToLobby();
+                    this.isLevelTransitioning = false;
                 } else {
                     audio.levelUp(); this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
                     this.buildBricksForLevel(this.level);
                     this.resetBallAndPaddle();
                     this.renderHUDCanvas();
-                    this.startLevelCountdown(() => { this.launchBall(); });
+                    this.startLevelCountdown(() => { 
+                        this.isLevelTransitioning = false;
+                        this.launchBall(); 
+                    });
                 }
             }
 
             returnToLobby() {
                 if (this.countdownTimer) clearInterval(this.countdownTimer);
                 this.isCountdownActive = false;
+                this.isLevelTransitioning = false;
                 this.gameState = 'LOBBY';
                 this.lobbyGroup.visible = true;
                 this.gameOverGroup.visible = false;
@@ -1107,6 +1137,7 @@
             triggerGameOver() {
                 if (this.countdownTimer) clearInterval(this.countdownTimer);
                 this.isCountdownActive = false;
+                this.isLevelTransitioning = false;
                 this.gameState = 'GAMEOVER';
                 audio.gameOver();
                 showToast('GAME OVER! No lives remaining.', 'fa-skull');
@@ -1118,7 +1149,7 @@
             }
 
             updatePhysics(dt) {
-                if (this.gameState !== 'PLAYING' || this.isCountdownActive) return;
+                if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
                 if (this.isFireActive) {
                     this.fireTimer -= dt;
@@ -1141,7 +1172,6 @@
                         audio.powerUpPickup();
                         const type = p.userData.type;
 
-                        // OVERRIDE ABSOLUTO: Il nuovo bonus disattiva sempre quello precedente
                         if (type === 'S') {
                             this.fireTimer = 0;
                             this.setPaddleBonusState('SPEED'); 
@@ -1194,10 +1224,11 @@
 
                     for (let j = bricks.length - 1; j >= 0; j--) {
                         const b = bricks[j];
-                        if (!b.visible) continue;
+                        if (!b || !b.visible || !b.userData || !b.userData.active) continue;
 
                         const brickBox = new THREE.Box3().setFromObject(b);
                         if (brickBox.intersectsBox(bulletBox)) {
+                            b.userData.active = false;
                             b.visible = false;
                             this.particlePool.explode(b.position, b.userData.colorHex);
                             
@@ -1206,12 +1237,14 @@
                             }
 
                             this.bricksGroup.remove(b);
-                            b.geometry.dispose(); b.material.dispose();
+                            if (b.geometry) b.geometry.dispose();
+                            if (b.material) b.material.dispose();
+
                             this.score += b.userData.points;
                             audio.gunshot();
                             bulletHit = true;
                             
-                            if (this.bricksGroup.children.length === 0) {
+                            if (this.getRemainingBricksCount() === 0) {
                                 this.advanceLevel();
                                 return;
                             } else {
@@ -1268,9 +1301,11 @@
                 const bricks = this.bricksGroup.children;
                 for (let i = bricks.length - 1; i >= 0; i--) {
                     const b = bricks[i];
-                    if (!b.visible) continue;
+                    if (!b || !b.visible || !b.userData || !b.userData.active) continue;
                     const brickBox = new THREE.Box3().setFromObject(b);
+
                     if (brickBox.intersectsBox(ballBox)) {
+                        b.userData.active = false;
                         b.visible = false;
                         this.particlePool.explode(b.position, b.userData.colorHex);
                         
@@ -1279,7 +1314,9 @@
                         }
 
                         this.bricksGroup.remove(b);
-                        b.geometry.dispose(); b.material.dispose();
+                        if (b.geometry) b.geometry.dispose();
+                        if (b.material) b.material.dispose();
+
                         this.ballVel.y = -this.ballVel.y;
                         this.score += b.userData.points;
                         audio.gunshot();
@@ -1293,7 +1330,7 @@
                             showToast(`⚡ SPEED UP! Ball Speed: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
                         }
 
-                        if (this.bricksGroup.children.length === 0) {
+                        if (this.getRemainingBricksCount() === 0) {
                             this.advanceLevel();
                             return;
                         } else {
