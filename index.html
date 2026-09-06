@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR 3D Arkanoid - v1.3.0</title>
+    <title>WebXR 3D Arkanoid - v1.4.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -74,7 +74,7 @@
                             ARKANOID 3D XR
                         </h1>
                         <span class="bg-cyan-950 text-cyan-300 text-xs px-2 py-0.5 rounded-full font-mono border border-cyan-500/40">
-                            v1.3.0
+                            v1.4.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300">Ottimizzato per Meta Quest 3 (AR Passthrough &amp; VR) e Desktop</p>
@@ -102,21 +102,21 @@
         <div class="glass-panel p-4 rounded-2xl max-w-sm pointer-events-auto self-start border-l-4 border-l-cyan-400 text-xs text-slate-300">
             <h3 class="font-bold text-cyan-400 mb-1 flex items-center space-x-1.5">
                 <i class="fa-solid fa-gamepad"></i>
-                <span>CONTROLLI &amp; WEBXR (v1.3.0):</span>
+                <span>CONTROLLI &amp; WEBXR (v1.4.0):</span>
             </h3>
             <ul class="space-y-1 text-slate-300 list-disc list-inside">
-                <li><strong class="text-white">Sensibilità:</strong> Regolabile dall'HUD 3D (1.0x - 3.5x) per scorrimenti ultrasensibili.</li>
-                <li><strong class="text-white">Quest 3 VR/AR:</strong> Controller Dx sposta il Pad. Raggio laser + Grilletto per cliccare.</li>
-                <li><strong class="text-white">Quota $Y=0$:</strong> Allineata al pavimento fisico (Guardian local-floor). Base a +30 cm.</li>
+                <li><strong class="text-white">Modalità RAGGIO:</strong> Il Pad segue il punto del raggio laser sul muro.</li>
+                <li><strong class="text-white">Modalità TILT:</strong> Il Pad si muove ruotando il polso. La sensibilità si applica qui.</li>
+                <li><strong class="text-white">Cambio Modalità:</strong> Tasto dedicato nell'HUD 3D a sinistra.</li>
             </ul>
         </div>
     </div>
 
     <script>
         // --- GAME VERSION CONSTANT ---
-        const VERSION = "v1.3.0";
+        const VERSION = "v1.4.0";
 
-        // Toast Notification System (Replacement for forbidden alert)
+        // Toast Notification System
         function showToast(message, iconClass = "fa-circle-info") {
             const container = document.getElementById('toast-container');
             const bodyMessage = document.getElementById('toast-message');
@@ -185,12 +185,12 @@
 
         const audio = new RetroAudioEngine();
 
-        // --- SPATIAL FIELD CONFIGURATION (v1.3.0 Updates) ---
+        // --- SPATIAL FIELD CONFIGURATION ---
         const FIELD = {
             width: 2.0,       // 2.0 meters wide
             height: 3.0,      // 3.0 meters high
-            depth: 0.20,      // 20 cm depth channel (v1.3.0)
-            bottomY: 0.30,    // Base lowered to 30 cm off physical floor (v1.3.0)
+            depth: 0.20,      // 20 cm depth channel
+            bottomY: 0.30,    // Base lowered to 30 cm off physical floor
             get centerY() { return this.bottomY + (this.height / 2); },
             get topY() { return this.bottomY + this.height; },
             zPos: -1.80       // Field placed 1.8 meters in front of player
@@ -202,10 +202,9 @@
 
         // --- LIGHTWEIGHT BRICK PARTICLE EXPLOSION ENGINE ---
         class BrickParticleSystem {
-            constructor(scene) {
-                this.scene = scene;
+            constructor(parentGroup) {
+                this.parentGroup = parentGroup; // fieldGroup attached for exact spatial alignment
                 this.particles = [];
-                // Reuse a single box geometry to optimize GPU memory on Quest 3
                 this.sharedGeo = new THREE.BoxGeometry(0.025, 0.025, 0.025);
             }
 
@@ -218,6 +217,7 @@
                         opacity: 1.0
                     });
                     const pMesh = new THREE.Mesh(this.sharedGeo, mat);
+                    // Spawn at exact local coordinates of the brick
                     pMesh.position.copy(position);
 
                     // Random outward velocity
@@ -227,7 +227,7 @@
                         (Math.random() - 0.5) * 1.8
                     );
 
-                    this.scene.add(pMesh);
+                    this.parentGroup.add(pMesh);
                     this.particles.push({
                         mesh: pMesh,
                         velocity: velocity,
@@ -243,7 +243,7 @@
                     p.life -= dt;
 
                     if (p.life <= 0) {
-                        this.scene.remove(p.mesh);
+                        this.parentGroup.remove(p.mesh);
                         p.mesh.material.dispose();
                         this.particles.splice(i, 1);
                     } else {
@@ -272,8 +272,11 @@
                 this.paddleWidth = 0.40;
                 this.paddleX = 0;
 
-                // Controller Sensitivity Setting (v1.3.0 Feature)
-                this.paddleSensitivity = 2.0; // Default 2.0x for quick responsive moving
+                // Control Mode System (v1.4.0)
+                // 'RAY' = Laser ray intersection with field wall plane
+                // 'TILT' = Absolute Z-axis tilt rotation of right controller
+                this.controlMode = 'RAY';
+                this.paddleSensitivity = 2.0; // Applies ONLY in 'TILT' mode
 
                 // Telemetry
                 this.fps = 60;
@@ -294,8 +297,8 @@
                 this.initField();
                 this.initPaddleAndBall();
                 this.initLobbyPanel(); // Positioned in front at Z = -1.1m
-                this.initDebugHUD();   // Positioned on Left side with Sensitivity Controls
-                this.particleSys = new BrickParticleSystem(this.scene);
+                this.initDebugHUD();   // Positioned on Left side with Control Mode & Sensitivity
+                this.particleSys = new BrickParticleSystem(this.fieldGroup); // Attached to fieldGroup for exact positioning
                 this.initXRControllers();
                 this.initWebXRButtons();
                 this.initDesktopEvents();
@@ -309,7 +312,7 @@
                 this.scene.background = new THREE.Color(0x080c14);
 
                 this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 50);
-                this.camera.position.set(0, 1.6, 0.8); // Standard eye level viewing position
+                this.camera.position.set(0, 1.6, 0.8);
 
                 this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -344,7 +347,7 @@
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Playfield frame wireframe box (v1.3.0 Depth = 0.20m, BottomY = 0.30m)
+                // Playfield frame wireframe box
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
                 const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
@@ -380,7 +383,6 @@
             }
 
             buildBricks() {
-                // Clear existing
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children.pop();
                     b.geometry.dispose();
@@ -415,7 +417,6 @@
                         const mesh = new THREE.Mesh(geo, mat);
                         mesh.position.set(x, y, 0);
 
-                        // Wireframe edges
                         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
                         mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
 
@@ -473,13 +474,12 @@
             }
 
             launchBall() {
-                const angle = (Math.random() * 0.4 - 0.2); // slight random angle
+                const angle = (Math.random() * 0.4 - 0.2);
                 this.ballVel.set(Math.sin(angle) * this.ballSpeed, this.ballSpeed, 0);
             }
 
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
-                // Placed in front at Z = -1.1m so it never overlaps the bricks at Z = -1.8m
                 this.lobbyGroup.position.set(0, 1.6, -1.1);
 
                 const canvas = document.createElement('canvas');
@@ -487,7 +487,6 @@
                 canvas.height = 512;
                 const ctx = canvas.getContext('2d');
 
-                // Render stylish Lobby Graphic
                 const grad = ctx.createLinearGradient(0, 0, 1024, 512);
                 grad.addColorStop(0, '#0a0f24');
                 grad.addColorStop(0.5, '#1e0538');
@@ -536,7 +535,6 @@
                 startBtn.position.set(0, -0.25, 0.04);
                 startBtn.userData = { action: 'START_GAME' };
 
-                // Button 3D Label
                 const btnCanvas = document.createElement('canvas');
                 btnCanvas.width = 512;
                 btnCanvas.height = 128;
@@ -585,9 +583,9 @@
 
                 this.scene.add(this.hudMesh);
 
-                // --- 3D Interactive HUD Buttons (v1.3.0 Sensitivity Controls) ---
-                const makeHUDButton = (label, xPos, yPos, action) => {
-                    const bGeo = new THREE.BoxGeometry(0.24, 0.08, 0.03);
+                // --- 3D Interactive HUD Buttons ---
+                const makeHUDButton = (label, xPos, yPos, w, h, action) => {
+                    const bGeo = new THREE.BoxGeometry(w, h, 0.03);
                     const bMat = new THREE.MeshStandardMaterial({
                         color: 0x00d8ff,
                         emissive: 0x005588,
@@ -599,28 +597,29 @@
                     btn.userData = { action: action };
 
                     const c = document.createElement('canvas');
-                    c.width = 256; c.height = 80;
+                    c.width = Math.round(w * 1000); c.height = Math.round(h * 1000);
                     const cCtx = c.getContext('2d');
-                    cCtx.fillStyle = '#00d8ff'; cCtx.fillRect(0,0,256,80);
-                    cCtx.fillStyle = '#000000'; cCtx.font = 'bold 32px sans-serif';
+                    cCtx.fillStyle = '#00d8ff'; cCtx.fillRect(0, 0, c.width, c.height);
+                    cCtx.fillStyle = '#000000'; cCtx.font = 'bold 36px sans-serif';
                     cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
-                    cCtx.fillText(label, 128, 40);
+                    cCtx.fillText(label, c.width / 2, c.height / 2);
 
                     const lMesh = new THREE.Mesh(
-                        new THREE.PlaneGeometry(0.23, 0.07),
+                        new THREE.PlaneGeometry(w - 0.01, h - 0.01),
                         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true })
                     );
                     lMesh.position.z = 0.016;
                     btn.add(lMesh);
 
-                    // Add button as child of HUD mesh
                     this.hudMesh.add(btn);
                     this.interactiveObjects.push(btn);
+                    return btn;
                 };
 
-                // Add Sensitivity Buttons on lower part of HUD
-                makeHUDButton("SENS -", -0.28, -0.25, 'SENS_DOWN');
-                makeHUDButton("SENS +", 0.28, -0.25, 'SENS_UP');
+                // Add HUD Control Buttons
+                this.btnToggleMode = makeHUDButton("MODO: RAGGIO", 0, -0.15, 0.70, 0.09, 'TOGGLE_MODE');
+                makeHUDButton("SENS -", -0.25, -0.28, 0.24, 0.08, 'SENS_DOWN');
+                makeHUDButton("SENS +", 0.25, -0.28, 0.24, 0.08, 'SENS_UP');
 
                 this.renderHUDCanvas();
             }
@@ -671,15 +670,26 @@
                 ctx.fillText(`MATTONI RIMS : ${activeBricks} / 55`, 80, 410);
                 ctx.fillText(`VEL. PALLA   : ${this.ballSpeed.toFixed(1)} m/s`, 80, 460);
 
-                // Controller Sensitivity Display (v1.3.0 Feature)
-                ctx.fillStyle = '#00d8ff';
-                ctx.font = 'bold 32px monospace';
-                ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x`, 80, 520);
+                // Control Mode Display (v1.4.0)
+                ctx.fillStyle = '#ff00d4';
+                ctx.font = 'bold 30px monospace';
+                const modeText = this.controlMode === 'RAY' ? 'RAGGIO (Punto impatto 1:1)' : 'INCLINAZIONE (Tilt Z-Axis)';
+                ctx.fillText(`MODO PAD     : ${modeText}`, 80, 520);
 
-                ctx.fillStyle = '#64748b';
+                // Sensitivity Status Display
+                if (this.controlMode === 'TILT') {
+                    ctx.fillStyle = '#00f0ff';
+                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (ATTIVA)`, 80, 570);
+                } else {
+                    ctx.fillStyle = '#64748b';
+                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (Disattiva in Raggio)`, 80, 570);
+                }
+
+                ctx.fillStyle = '#94a3b8';
                 ctx.font = '22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Usa i tasti SENS - / SENS + sotto per regolare lo spostamento Pad', w / 2, 720);
+                ctx.fillText('Premi MODO per passare da Raggio Laser ad Inclinazione Polso', w / 2, 730);
+                ctx.fillText('La sensibilità modifica lo spostamento solo in modalità INCLINAZIONE', w / 2, 760);
                 ctx.fillText('Tracciamento Quota Y=0 (local-floor) Attivo - Base +30cm', w / 2, 960);
 
                 this.hudTexture.needsUpdate = true;
@@ -751,7 +761,6 @@
                     const session = await navigator.xr.requestSession(mode, sessionInit);
                     this.renderer.xr.setSession(session);
 
-                    // Passthrough background configuration for AR mode
                     if (mode === 'immersive-ar') {
                         this.scene.background = null;
                         this.floorGrid.visible = false;
@@ -804,14 +813,18 @@
             handleAction(action) {
                 if (action === 'START_GAME') {
                     this.startGame();
+                } else if (action === 'TOGGLE_MODE') {
+                    this.controlMode = this.controlMode === 'RAY' ? 'TILT' : 'RAY';
+                    this.renderHUDCanvas();
+                    showToast(`Modalità Controller: ${this.controlMode === 'RAY' ? 'RAGGIO 1:1' : 'INCLINAZIONE TILT'}`, 'fa-sliders');
                 } else if (action === 'SENS_DOWN') {
                     this.paddleSensitivity = Math.max(1.0, this.paddleSensitivity - 0.5);
                     this.renderHUDCanvas();
-                    showToast(`Sensibilità Pad: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
+                    showToast(`Sensibilità TILT: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
                 } else if (action === 'SENS_UP') {
-                    this.paddleSensitivity = Math.min(3.5, this.paddleSensitivity + 0.5);
+                    this.paddleSensitivity = Math.min(4.0, this.paddleSensitivity + 0.5);
                     this.renderHUDCanvas();
-                    showToast(`Sensibilità Pad: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
+                    showToast(`Sensibilità TILT: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
                 }
             }
 
@@ -825,8 +838,11 @@
                 window.addEventListener('mousemove', (e) => {
                     if (!this.renderer.xr.isPresenting) {
                         const normX = (e.clientX / window.innerWidth) * 2 - 1;
-                        // Multiply mouse displacement by paddleSensitivity
-                        this.paddleX = normX * (FIELD.width / 2) * (this.paddleSensitivity / 1.5);
+                        if (this.controlMode === 'RAY') {
+                            this.paddleX = normX * (FIELD.width / 2);
+                        } else {
+                            this.paddleX = normX * (FIELD.width / 2) * (this.paddleSensitivity / 1.5);
+                        }
                     }
                 });
 
@@ -862,7 +878,7 @@
                 this.gameState = 'PLAYING';
                 this.score = 0;
                 this.lives = 3;
-                this.lobbyGroup.visible = false; // Hide 3D Lobby Logo
+                this.lobbyGroup.visible = false;
                 this.buildBricks();
                 this.resetBallAndPaddle();
                 this.launchBall();
@@ -871,7 +887,7 @@
 
             returnToLobby() {
                 this.gameState = 'LOBBY';
-                this.lobbyGroup.visible = true; // Show 3D Lobby Logo
+                this.lobbyGroup.visible = true;
                 this.resetBallAndPaddle();
                 this.renderHUDCanvas();
             }
@@ -942,7 +958,7 @@
                     if (brickBox.intersectsBox(ballBox)) {
                         b.visible = false;
 
-                        // Trigger Lightweight Particle Explosion (v1.3.0 Feature)
+                        // FIX: Particle explosion now spawns at exact local brick position in fieldGroup space
                         this.particleSys.explode(b.position, b.userData.colorHex);
 
                         this.bricksGroup.remove(b);
@@ -971,10 +987,32 @@
                 const maxClampedX = FIELD.width / 2 - halfPad;
 
                 if (this.renderer.xr.isPresenting) {
-                    // Drive paddle with Right VR Controller position multiplied by sensitivity
-                    const rightController = this.controllers[1];
+                    // Drive paddle using selected VR Control Mode (v1.4.0)
+                    const rightController = this.controllers[1] || this.controllers[0];
+
                     if (rightController) {
-                        this.paddleX = rightController.position.x * this.paddleSensitivity;
+                        if (this.controlMode === 'RAY') {
+                            // MODE 1: RAY INTERSECTION (Point-and-Move 1:1)
+                            this.tempMatrix.identity().extractRotation(rightController.matrixWorld);
+                            const rayOrigin = new THREE.Vector3().setFromMatrixPosition(rightController.matrixWorld);
+                            const rayDir = new THREE.Vector3(0, 0, -1).applyMatrix4(this.tempMatrix);
+
+                            // Intersect plane corresponding to playfield back face
+                            const playfieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -FIELD.zPos);
+                            const ray = new THREE.Ray(rayOrigin, rayDir);
+                            const targetPoint = new THREE.Vector3();
+
+                            if (ray.intersectPlane(playfieldPlane, targetPoint)) {
+                                // X coordinate of intersection point on playfield wall
+                                this.paddleX = targetPoint.x;
+                            }
+                        } else if (this.controlMode === 'TILT') {
+                            // MODE 2: CONTROLLER TILT / ROTATION (Roll angle multiplied by sensitivity)
+                            const euler = new THREE.Euler().setFromQuaternion(rightController.quaternion, 'ZYX');
+                            // euler.z is roll angle in radians
+                            const rollAngle = euler.z;
+                            this.paddleX = -rollAngle * (FIELD.width / 1.2) * this.paddleSensitivity;
+                        }
                     }
                 }
 
@@ -999,7 +1037,7 @@
                 this.updatePaddlePosition();
                 this.updatePhysics(dt);
 
-                // Update brick explosion particles
+                // Update brick particle explosions
                 this.particleSys.update(dt);
 
                 // Pulse light intensity
