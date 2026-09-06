@@ -2,22 +2,20 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v1.8.0 - WebXR 3D Spatial Arcade</title>
-
-    <!-- Tailwind CSS CDN -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARkanium - v1.9.0</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js r128 CDN -->
+    <!-- Three.js r128 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- FontAwesome Icons CDN -->
+    <!-- FontAwesome icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #04070d;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: #0b0f19;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             user-select: none;
         }
         #webgl-container {
@@ -26,26 +24,10 @@
             display: block;
         }
         .glass-panel {
-            background: rgba(10, 16, 30, 0.88);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(0, 240, 255, 0.25);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-        }
-        .xr-glow-btn {
-            box-shadow: 0 0 25px rgba(0, 240, 255, 0.4);
-            transition: all 0.2s ease-in-out;
-        }
-        .xr-glow-btn:hover {
-            box-shadow: 0 0 35px rgba(0, 240, 255, 0.8);
-            transform: scale(1.03);
-        }
-        .xr-ar-btn {
-            box-shadow: 0 0 25px rgba(236, 72, 153, 0.4);
-            transition: all 0.2s ease-in-out;
-        }
-        .xr-ar-btn:hover {
-            box-shadow: 0 0 35px rgba(236, 72, 153, 0.8);
-            transform: scale(1.03);
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
     </style>
 </head>
@@ -54,99 +36,68 @@
     <!-- WebGL Canvas Container -->
     <div id="webgl-container"></div>
 
-    <!-- Notification Toast System -->
-    <div id="toast-container" class="fixed top-12 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
-        <div id="toast-body" class="glass-panel text-cyan-300 px-6 py-3 rounded-2xl font-semibold text-sm flex items-center space-x-3 border border-cyan-500/40">
-            <i id="toast-icon" class="fa-solid fa-circle-info text-cyan-400"></i>
-            <span id="toast-message">Messaggio di sistema</span>
-        </div>
-    </div>
-
-    <!-- WebXR Launcher Overlay Header -->
+    <!-- Top Desktop / Mobile Overlay UI -->
     <div id="overlay-ui" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
-        <!-- Top Title & Version Header -->
-        <div class="flex flex-wrap justify-between items-start gap-4 w-full">
-            <div class="glass-panel px-6 py-4 rounded-3xl flex items-center space-x-4 pointer-events-auto">
-                <div class="p-3 bg-gradient-to-tr from-cyan-600 to-indigo-600 rounded-2xl shadow-lg shadow-cyan-950">
-                    <i class="fa-solid fa-cubes-stacked text-white text-2xl"></i>
-                </div>
+        <div class="flex justify-between items-center w-full">
+            <div class="glass-panel px-4 py-2 rounded-xl flex items-center space-x-3 pointer-events-auto">
+                <i class="fa-solid fa-cubes text-cyan-400 text-xl"></i>
                 <div>
-                    <div class="flex items-center space-x-2">
-                        <h1 class="font-black text-2xl tracking-wider bg-gradient-to-r from-cyan-400 via-sky-200 to-pink-400 bg-clip-text text-transparent">
-                            ARkanium
-                        </h1>
-                        <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v1.8.0
-                        </span>
-                    </div>
-                    <p class="text-xs text-slate-300 mt-0.5">Esperienza Arcade WebXR 3D (AR Passthrough &amp; VR Immersivo)</p>
+                    <h1 class="font-bold text-lg leading-tight tracking-wider bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
+                        ARKANIUM
+                    </h1>
+                    <p class="text-xs text-gray-400">Versione <span class="text-cyan-300 font-mono">v1.9.0</span></p>
                 </div>
             </div>
 
-            <!-- WebXR Launch Action Buttons -->
-            <div class="flex flex-wrap gap-3 pointer-events-auto">
-                <button id="btn-ar" class="xr-ar-btn bg-gradient-to-r from-pink-600 to-fuchsia-600 hover:from-pink-500 hover:to-fuchsia-500 text-white px-6 py-3 rounded-2xl text-sm font-black transition-all flex items-center space-x-2 border border-pink-300/40">
-                    <i class="fa-solid fa-glasses text-lg"></i>
-                    <span>ENTRA IN AR PASSTHROUGH</span>
-                </button>
-                <button id="btn-vr" class="xr-glow-btn bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-6 py-3 rounded-2xl text-sm font-black transition-all flex items-center space-x-2 border border-cyan-300/40">
+            <!-- WebXR Session Buttons -->
+            <div class="flex space-x-3 pointer-events-auto">
+                <button id="btn-ar" class="glass-panel hover:bg-cyan-600/30 text-cyan-300 hover:text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 border border-cyan-500/30">
                     <i class="fa-solid fa-vr-cardboard text-lg"></i>
-                    <span>ENTRA IN VR IMMERSIVO</span>
+                    <span>ENTRA IN AR</span>
+                </button>
+                <button id="btn-vr" class="glass-panel bg-indigo-600/40 hover:bg-indigo-600/70 text-indigo-200 hover:text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 border border-indigo-500/40 shadow-lg shadow-indigo-900/30">
+                    <i class="fa-solid fa-headset text-lg"></i>
+                    <span>ENTRA IN VR</span>
                 </button>
             </div>
         </div>
     </div>
 
+    <!-- Game Engine Logic -->
     <script>
-        // --- GAME CONSTANTS & CONFIGURATION ---
-        const GAME_TITLE = "ARkanium";
-        const VERSION = "v1.8.0";
+        const VERSION = "v1.9.0";
+        
+        // Field Dimensions (height 2.70m, depth 20cm, bottom 30cm off floor)
+        const FIELD = {
+            width: 2.0,
+            height: 2.70,
+            depth: 0.20,
+            bottomY: 0.30, 
+            get centerY() { return this.bottomY + (this.height / 2); },
+            get topY() { return this.bottomY + this.height; },
+            zPos: -1.8
+        };
 
-        // Toast Notification System
-        function showToast(message, iconClass = "fa-circle-info") {
-            const container = document.getElementById('toast-container');
-            const bodyMessage = document.getElementById('toast-message');
-            const icon = document.getElementById('toast-icon');
+        const BRICKS_COLS = 13; // 13 columns as requested
+        const ROW_COLORS = [0xff3366, 0xff9900, 0xffcc00, 0x33cc66, 0x3399ff, 0xa855f7];
 
-            if (!container || !bodyMessage) return;
-
-            bodyMessage.textContent = message;
-            icon.className = `fa-solid ${iconClass} text-cyan-400`;
-
-            container.classList.remove('opacity-0', '-translate-y-4');
-            container.classList.add('opacity-100', 'translate-y-0');
-
-            setTimeout(() => {
-                container.classList.remove('opacity-100', 'translate-y-0');
-                container.classList.add('opacity-0', '-translate-y-4');
-            }, 3200);
-        }
-
-        // Web Audio Synthesizer Engine
-        class RetroAudioEngine {
-            constructor() {
-                this.ctx = null;
-                this.muted = false;
-            }
-
+        // --- AUDIO SYNTHESIZER ---
+        class RetroSoundEngine {
+            constructor() { this.ctx = null; }
             init() {
                 if (!this.ctx) {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                    if (AudioCtx) this.ctx = new AudioCtx();
-                }
-                if (this.ctx && this.ctx.state === 'suspended') {
-                    this.ctx.resume();
+                    this.ctx = new AudioCtx();
                 }
             }
-
-            playTone(freq, type = 'square', duration = 0.08, volume = 0.15) {
-                if (this.muted || !this.ctx) return;
+            playTone(freq, type = 'square', duration = 0.1, gainVal = 0.15) {
+                if (!this.ctx) return;
                 try {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = type;
                     osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
                     osc.connect(gain);
                     gain.connect(this.ctx.destination);
@@ -154,678 +105,460 @@
                     osc.stop(this.ctx.currentTime + duration);
                 } catch (e) {}
             }
-
-            paddleHit() { this.playTone(320, 'triangle', 0.09, 0.22); }
-            wallHit() { this.playTone(210, 'sine', 0.06, 0.14); }
-            brickHit(row = 0) { this.playTone(380 + (row * 60), 'square', 0.08, 0.25); }
-            speedBoost() { this.playTone(880, 'sine', 0.12, 0.2); }
-            levelUp() {
-                [523, 659, 783, 1046].forEach((f, idx) => {
-                    setTimeout(() => this.playTone(f, 'sine', 0.15, 0.22), idx * 100);
-                });
-            }
-            uiClick() { this.playTone(780, 'sine', 0.05, 0.18); }
-            lifeLost() { 
-                this.playTone(180, 'sawtooth', 0.2, 0.25);
-                setTimeout(() => this.playTone(120, 'sawtooth', 0.3, 0.25), 180);
+            paddleHit() { this.playTone(320, 'square', 0.08, 0.2); }
+            wallHit() { this.playTone(220, 'triangle', 0.06, 0.15); }
+            brickHit(pitch = 0) { this.playTone(440 + (pitch * 35), 'square', 0.1, 0.22); }
+            scoreUp() {
+                if (!this.ctx) return;
+                this.playTone(587.33, 'sine', 0.08, 0.2);
+                setTimeout(() => this.playTone(880, 'sine', 0.15, 0.2), 80);
             }
             gameOver() {
-                [220, 196, 174, 130].forEach((f, idx) => {
-                    setTimeout(() => this.playTone(f, 'sawtooth', 0.25, 0.3), idx * 200);
-                });
-            }
-            gameWin() {
-                [523, 659, 783, 1046, 1318].forEach((f, idx) => {
-                    setTimeout(() => this.playTone(f, 'sine', 0.18, 0.25), idx * 120);
-                });
+                if (!this.ctx) return;
+                [300, 260, 220, 180].forEach((f, i) => setTimeout(() => this.playTone(f, 'sawtooth', 0.2, 0.25), i * 150));
             }
         }
 
-        const audio = new RetroAudioEngine();
+        const audio = new RetroSoundEngine();
 
-        // --- SPATIAL FIELD CONFIGURATION (Height = 2.70m, Base Y = 0.30m) ---
-        const FIELD = {
-            width: 2.0,       // 2.0 meters wide
-            height: 2.70,     // 2.70 meters high
-            depth: 0.20,      // 20 cm depth channel
-            bottomY: 0.30,    // Base at 30 cm off physical floor
-            get centerY() { return this.bottomY + (this.height / 2); }, // 1.65m
-            get topY() { return this.bottomY + this.height; },         // 3.00m
-            zPos: -1.80       // Field placed 1.8 meters in front of user origin
-        };
-
-        const BRICKS_COLS = 11;
-        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88, 0x9900ff];
-
-        // Object Pooled Particle Explosion Engine
-        class QuestParticlePool {
-            constructor(parentGroup, maxParticles = 100) {
-                this.parentGroup = parentGroup;
-                this.pool = [];
-                this.sharedGeo = new THREE.BoxGeometry(0.025, 0.025, 0.025);
-
-                for (let i = 0; i < maxParticles; i++) {
-                    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 });
-                    const pMesh = new THREE.Mesh(this.sharedGeo, mat);
-                    pMesh.visible = false;
-                    this.parentGroup.add(pMesh);
-
-                    this.pool.push({
-                        mesh: pMesh,
-                        mat: mat,
-                        velocity: new THREE.Vector3(),
-                        life: 0,
-                        maxLife: 0.35,
-                        active: false
-                    });
-                }
-            }
-
-            explode(position, colorHex) {
-                const count = 10;
-                let spawned = 0;
-
-                for (let i = 0; i < this.pool.length && spawned < count; i++) {
-                    const p = this.pool[i];
-                    if (!p.active) {
-                        p.active = true;
-                        p.mesh.visible = true;
-                        p.mesh.position.copy(position);
-                        p.mat.color.setHex(colorHex);
-                        p.mat.opacity = 1.0;
-                        p.life = 0.35;
-                        p.maxLife = 0.35;
-
-                        p.velocity.set(
-                            (Math.random() - 0.5) * 2.8,
-                            (Math.random() - 0.2) * 2.5,
-                            (Math.random() - 0.5) * 1.8
-                        );
-                        spawned++;
-                    }
-                }
-            }
-
-            update(dt) {
-                for (let i = 0; i < this.pool.length; i++) {
-                    const p = this.pool[i];
-                    if (!p.active) continue;
-
-                    p.life -= dt;
-                    if (p.life <= 0) {
-                        p.active = false;
-                        p.mesh.visible = false;
-                    } else {
-                        p.mesh.position.addScaledVector(p.velocity, dt);
-                        p.velocity.y -= 4.0 * dt;
-
-                        const progress = p.life / p.maxLife;
-                        p.mesh.scale.setScalar(Math.max(0.01, progress));
-                        p.mat.opacity = progress;
-                    }
-                }
-            }
-        }
-
-        class ARkaniumXRApp {
+        class ArkanoidApp {
             constructor() {
                 this.container = document.getElementById('webgl-container');
-
-                // Game State variables
-                this.gameState = 'LOBBY'; // 'LOBBY', 'PLAYING', 'GAMEOVER', 'VICTORY'
-                this.level = 1;           // 1, 2, 3
+                this.gameState = 'LOBBY';
                 this.score = 0;
                 this.lives = 3;
-                this.baseBallSpeed = 1.8; // Base speed m/s
-                this.speedMultiplier = 1.0;
-                this.totalBricksHitInLife = 0;
-                this.paddleWidth = 0.40;
-                this.paddleX = 0;
+                this.level = 1;
+                this.bricksRemaining = 0;
+                this.bricksHitTotal = 0;
+                
+                this.baseBallSpeed = 1.8;
+                this.ballSpeedMultiplier = 1.0;
+                this.ballVelocity = new THREE.Vector3(0, 0, 0);
 
-                // Control Mode & Handedness
-                this.controlMode = 'RAY'; // 'RAY' or 'TILT'
-                this.activeHand = 'RIGHT'; // 'RIGHT' or 'LEFT' (Default: Destro)
-                this.paddleSensitivity = 2.0;
+                // Control Settings
+                this.controlMode = 'RAGGIO'; // 'RAGGIO' or 'TILT'
+                this.activeHand = 'DESTRO';    // 'DESTRO' or 'SINISTRO'
+                this.sensitivity = 1.8;
 
-                // Laser Ray Visibility Management
-                this.showLasersInGame = false;
-                this.prevButtonBState = false;
+                // HUD Grabbing / Dragging State
+                this.isHudGrabbed = false;
+                this.hudGrabOffset = new THREE.Vector3();
 
-                // HUD Dragging System
-                this.isDraggingHUD = false;
-                this.hudDragController = null;
-                this.hudDragOffset = new THREE.Vector3();
-                this.hudDragQuatOffset = new THREE.Quaternion();
+                // Rays visibility state (off during gameplay by default)
+                this.raysVisible = false;
 
-                // Interactive array for raycasting
+                this.mousePosition = new THREE.Vector2();
                 this.interactiveObjects = [];
-
-                // Raycasting & Input Buffers
                 this.raycaster = new THREE.Raycaster();
                 this.tempMatrix = new THREE.Matrix4();
-                this.playfieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -FIELD.zPos);
-                this.rayOrigin = new THREE.Vector3();
-                this.rayDir = new THREE.Vector3();
-                this.targetPoint = new THREE.Vector3();
 
                 this.initScene();
-                this.initLighting();
-                this.initField();
+                this.initLights();
+                this.initFieldGeometry();
                 this.initPaddleAndBall();
-                this.initLobbyPanel(); // Z = -1.1m (in front of field at Z = -1.8m)
-                this.initDebugHUD();   // Positioned on Left side (X = -1.5m, Y = 1.5m, Z = -1.2m)
-                this.particlePool = new QuestParticlePool(this.fieldGroup);
-                this.initXRControllers();
-                this.initWebXRLauncher();
+                this.initLobbyPanel();
+                this.initDebugHUD();
+                this.initWebXR();
+                this.initEventListeners();
 
-                // Start WebXR render loop
-                this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
+                this.renderer.setAnimationLoop((t, frame) => this.render(t, frame));
             }
 
             initScene() {
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x04070d);
+                this.scene.background = new THREE.Color(0x0a0d14);
 
-                this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 50);
-                this.camera.position.set(0, 1.6, 0.8);
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
+                this.camera.position.set(0, 1.6, 1.2);
 
-                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "highPerformance" });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
                 this.renderer.xr.enabled = true;
-
-                // Enforce local-floor reference space for physical floor sync
-                this.renderer.xr.setReferenceSpaceType('local-floor');
+                
                 this.container.appendChild(this.renderer.domElement);
-
-                // Floor grid for VR mode
-                this.floorGrid = new THREE.GridHelper(20, 40, 0x00f0ff, 0x1e293b);
-                this.floorGrid.position.set(0, 0, -2);
-                this.scene.add(this.floorGrid);
             }
 
-            initLighting() {
-                const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-                this.scene.add(ambient);
+            initLights() {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambientLight);
 
-                const dirLight = new THREE.DirectionalLight(0x00f0ff, 1.2);
-                dirLight.position.set(2, 4, 2);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+                dirLight.position.set(2, 4, 1);
+                dirLight.castShadow = true;
                 this.scene.add(dirLight);
 
-                const pointLight = new THREE.PointLight(0xff00d4, 1.5, 8);
-                pointLight.position.set(0, 2.0, -2.5);
-                this.scene.add(pointLight);
+                const blueGlow = new THREE.PointLight(0x00f0ff, 1.2, 5);
+                blueGlow.position.set(-FIELD.width / 2 - 0.2, FIELD.centerY, FIELD.zPos + 0.2);
+                this.scene.add(blueGlow);
+
+                const magentaGlow = new THREE.PointLight(0xff00a0, 1.2, 5);
+                magentaGlow.position.set(FIELD.width / 2 + 0.2, FIELD.centerY, FIELD.zPos + 0.2);
+                this.scene.add(magentaGlow);
             }
 
-            initField() {
+            initFieldGeometry() {
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Frame wireframe box (2.70m height)
-                const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
-                const edges = new THREE.EdgesGeometry(frameGeo);
-                const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
-                const frameMesh = new THREE.LineSegments(edges, lineMat);
-                frameMesh.position.set(0, FIELD.centerY, 0);
-                this.fieldGroup.add(frameMesh);
+                const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+                const wallThick = 0.08;
+                
+                // Left Wall
+                const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, FIELD.height, FIELD.depth), frameMat);
+                leftWall.position.set(-FIELD.width / 2 - wallThick / 2, FIELD.centerY, 0);
+                this.fieldGroup.add(leftWall);
 
-                // Translucent back glass pane
+                // Right Wall
+                const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, FIELD.height, FIELD.depth), frameMat);
+                rightWall.position.set(FIELD.width / 2 + wallThick / 2, FIELD.centerY, 0);
+                this.fieldGroup.add(rightWall);
+
+                // Top Wall
+                const topWall = new THREE.Mesh(new THREE.BoxGeometry(FIELD.width + (wallThick * 2), wallThick, FIELD.depth), frameMat);
+                topWall.position.set(0, FIELD.topY + wallThick / 2, 0);
+                this.fieldGroup.add(topWall);
+
+                // Back Wall Grid Panel
                 const backGeo = new THREE.PlaneGeometry(FIELD.width, FIELD.height);
-                const backMat = new THREE.MeshStandardMaterial({
-                    color: 0x080c1e,
-                    roughness: 0.2,
-                    metalness: 0.8,
-                    transparent: true,
-                    opacity: 0.65
-                });
-                const backPlane = new THREE.Mesh(backGeo, backMat);
-                backPlane.position.set(0, FIELD.centerY, -FIELD.depth / 2);
-                this.fieldGroup.add(backPlane);
+                const backMat = new THREE.MeshStandardMaterial({ color: 0x0b132b, roughness: 0.5, transparent: true, opacity: 0.85 });
+                const backMesh = new THREE.Mesh(backGeo, backMat);
+                backMesh.position.set(0, FIELD.centerY, -FIELD.depth / 2);
+                this.fieldGroup.add(backMesh);
 
-                // Base Hazard Red Line
-                const hazardGeo = new THREE.BoxGeometry(FIELD.width, 0.03, FIELD.depth);
-                const hazardMat = new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xff0044, emissiveIntensity: 0.7 });
-                const hazardBar = new THREE.Mesh(hazardGeo, hazardMat);
-                hazardBar.position.set(0, FIELD.bottomY, 0);
-                this.fieldGroup.add(hazardBar);
+                const gridHelper = new THREE.GridHelper(FIELD.height, 15, 0x00f0ff, 0x1e293b);
+                gridHelper.rotation.x = Math.PI / 2;
+                gridHelper.position.set(0, FIELD.centerY, -FIELD.depth / 2 + 0.01);
+                this.fieldGroup.add(gridHelper);
 
-                // Bricks container group
-                this.bricksGroup = new THREE.Group();
-                this.fieldGroup.add(this.bricksGroup);
+                // Bottom Rail
+                const railGeo = new THREE.CylinderGeometry(0.015, 0.015, FIELD.width);
+                const railMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.1 });
+                const railMesh = new THREE.Mesh(railGeo, railMat);
+                railMesh.rotation.z = Math.PI / 2;
+                railMesh.position.set(0, FIELD.bottomY + 0.1, 0);
+                this.fieldGroup.add(railMesh);
 
                 this.scene.add(this.fieldGroup);
+                this.bricksGroup = new THREE.Group();
+                this.fieldGroup.add(this.bricksGroup);
             }
 
-            buildBricksForLevel(levelNum) {
+            buildBrickMatrix() {
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children.pop();
                     b.geometry.dispose();
                     b.material.dispose();
                 }
 
-                // Level 1: 4 rows, Level 2: 5 rows, Level 3: 6 rows
-                const rows = Math.min(6, levelNum + 3);
+                const rows = 3 + this.level; // Level 1 = 4 rows, adds 1 per level
+                const gap = 0.012;
+                const totalGapsX = (BRICKS_COLS - 1) * gap;
+                const brickWidth = (FIELD.width - 0.08 - totalGapsX) / BRICKS_COLS;
+                const brickHeight = brickWidth / 2; // Rectangular: width is double height
 
-                const margin = 0.08;
-                const totalW = FIELD.width - margin;
-                const brickW = totalW / BRICKS_COLS - 0.01;
-                const brickH = 0.11;
-                const brickD = FIELD.depth - 0.04;
+                const startX = -FIELD.width / 2 + 0.04 + (brickWidth / 2);
+                const startY = FIELD.topY - 0.25;
 
-                const startX = -totalW / 2 + brickW / 2;
-                const startY = FIELD.topY - 0.22;
+                this.bricksRemaining = BRICKS_COLS * rows;
 
                 for (let r = 0; r < rows; r++) {
-                    const colorHex = ROW_COLORS[r % ROW_COLORS.length];
-                    const y = startY - r * (brickH + 0.012);
+                    const rowColor = ROW_COLORS[r % ROW_COLORS.length];
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: rowColor,
+                        metalness: 0.3,
+                        roughness: 0.2,
+                        emissive: rowColor,
+                        emissiveIntensity: 0.25
+                    });
+                    const geo = new THREE.BoxGeometry(brickWidth, brickHeight, 0.12);
 
                     for (let c = 0; c < BRICKS_COLS; c++) {
-                        const x = startX + c * (brickW + 0.01);
-
-                        const geo = new THREE.BoxGeometry(brickW, brickH, brickD);
-                        const mat = new THREE.MeshStandardMaterial({
-                            color: colorHex,
-                            emissive: colorHex,
-                            emissiveIntensity: 0.35,
-                            roughness: 0.2,
-                            metalness: 0.6
-                        });
-
-                        const mesh = new THREE.Mesh(geo, mat);
-                        mesh.position.set(x, y, 0);
-
-                        const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
-                        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
-
-                        mesh.userData = {
-                            active: true,
+                        const brick = new THREE.Mesh(geo, mat);
+                        const px = startX + c * (brickWidth + gap);
+                        const py = startY - r * (brickHeight + gap);
+                        
+                        brick.position.set(px, py, 0);
+                        brick.castShadow = true;
+                        brick.receiveShadow = true;
+                        
+                        brick.userData = {
+                            isBrick: true,
                             row: r,
                             col: c,
-                            colorHex: colorHex,
+                            width: brickWidth,
+                            height: brickHeight,
                             points: (rows - r) * 10
                         };
 
-                        this.bricksGroup.add(mesh);
+                        this.bricksGroup.add(brick);
                     }
                 }
             }
 
             initPaddleAndBall() {
-                // Paddle
-                const pGeo = new THREE.BoxGeometry(this.paddleWidth, 0.08, FIELD.depth);
-                const pMat = new THREE.MeshStandardMaterial({
+                this.paddleWidth = 0.38;
+                this.paddleHeight = 0.06;
+                this.paddleDepth = 0.12;
+
+                const paddleGeo = new THREE.BoxGeometry(this.paddleWidth, this.paddleHeight, this.paddleDepth);
+                const paddleMat = new THREE.MeshStandardMaterial({
                     color: 0x00f0ff,
-                    emissive: 0x0088bb,
-                    metalness: 0.9,
-                    roughness: 0.1
+                    metalness: 0.8,
+                    roughness: 0.2,
+                    emissive: 0x0077aa,
+                    emissiveIntensity: 0.4
                 });
-                this.paddleMesh = new THREE.Mesh(pGeo, pMat);
-                this.paddleMesh.position.set(0, FIELD.bottomY + 0.15, 0);
-                this.fieldGroup.add(this.paddleMesh);
 
-                // Ball
-                const bGeo = new THREE.SphereGeometry(0.045, 32, 32);
-                const bMat = new THREE.MeshStandardMaterial({
+                this.paddle = new THREE.Mesh(paddleGeo, paddleMat);
+                this.resetPaddlePosition();
+                this.fieldGroup.add(this.paddle);
+
+                this.ballRadius = 0.045;
+                const ballGeo = new THREE.SphereGeometry(this.ballRadius, 32, 32);
+                const ballMat = new THREE.MeshStandardMaterial({
                     color: 0xffffff,
-                    emissive: 0x00f0ff,
-                    emissiveIntensity: 0.9,
-                    roughness: 0.1
+                    emissive: 0xffffff,
+                    emissiveIntensity: 0.6
                 });
-                this.ballMesh = new THREE.Mesh(bGeo, bMat);
-                this.ballLight = new THREE.PointLight(0x00ffff, 1.5, 1.5);
-                this.ballMesh.add(this.ballLight);
-                this.fieldGroup.add(this.ballMesh);
 
-                this.ballVel = new THREE.Vector3(0, 0, 0);
-                this.resetBallAndPaddle();
+                this.ball = new THREE.Mesh(ballGeo, ballMat);
+                this.ballLight = new THREE.PointLight(0x00f0ff, 1.5, 1.5);
+                this.ball.add(this.ballLight);
+
+                this.resetBall();
+                this.fieldGroup.add(this.ball);
             }
 
-            resetBallAndPaddle() {
-                this.paddleX = 0;
-                this.paddleMesh.position.x = 0;
-                this.ballMesh.position.set(0, FIELD.bottomY + 0.30, 0);
-                this.ballVel.set(0, 0, 0);
+            resetPaddlePosition() {
+                this.paddle.position.set(0, FIELD.bottomY + 0.1, 0);
+            }
+
+            resetBall() {
+                this.ball.position.set(0, FIELD.centerY - 0.3, 0);
+                this.ballVelocity.set(0, 0, 0);
             }
 
             launchBall() {
-                const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
-                const angle = (Math.random() * 0.4 - 0.2);
-                this.ballVel.set(Math.sin(angle) * currentSpeed, currentSpeed, 0);
+                const angle = (Math.random() * 0.6 - 0.3) * Math.PI;
+                const speed = this.baseBallSpeed * this.ballSpeedMultiplier;
+                this.ballVelocity.set(Math.sin(angle) * speed, -Math.cos(angle) * speed, 0);
             }
 
+            // --- LOBBY PANEL (Cleaned up per instructions) ---
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
-                this.lobbyGroup.position.set(0, 1.6, -1.1); // Placed in front at Z = -1.1m
+                this.lobbyGroup.position.set(0, 1.6, -1.1);
 
                 const canvas = document.createElement('canvas');
                 canvas.width = 1024;
                 canvas.height = 512;
                 const ctx = canvas.getContext('2d');
 
-                const grad = ctx.createLinearGradient(0, 0, 1024, 512);
-                grad.addColorStop(0, '#0a0f24');
-                grad.addColorStop(0.5, '#1e0538');
-                grad.addColorStop(1, '#051f38');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, 1024, 512);
-
+                // Render clean ARKANIUM title only
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.strokeStyle = '#00f0ff';
-                ctx.lineWidth = 12;
-                ctx.strokeRect(20, 20, 984, 472);
+                ctx.lineWidth = 10;
+                ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
 
-                ctx.textAlign = 'center';
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'black 82px sans-serif';
+                ctx.fillStyle = '#00f0ff';
                 ctx.shadowColor = '#00f0ff';
-                ctx.shadowBlur = 28;
-                ctx.fillText(GAME_TITLE, 512, 170);
+                ctx.shadowBlur = 25;
+                ctx.font = '900 110px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('ARKANIUM', canvas.width / 2, canvas.height / 2 + 20);
 
-                ctx.font = 'bold 32px sans-serif';
-                ctx.fillStyle = '#ff00d4';
-                ctx.shadowColor = '#ff00d4';
-                ctx.fillText(`SPATIAL XR ARCADE - ${VERSION}`, 512, 240);
+                this.lobbyTexture = new THREE.CanvasTexture(canvas);
+                const panelGeo = new THREE.PlaneGeometry(1.2, 0.6);
+                const panelMat = new THREE.MeshBasicMaterial({ map: this.lobbyTexture, transparent: true, side: THREE.DoubleSide });
+                const panelMesh = new THREE.Mesh(panelGeo, panelMat);
+                this.lobbyGroup.add(panelMesh);
 
-                ctx.font = 'bold 24px monospace';
-                ctx.fillStyle = '#00ff88';
-                ctx.shadowBlur = 10;
-                ctx.fillText('3 LIVELLI - SPEED BOOST - HUD DRAG', 512, 320);
-                ctx.fillText('PREMI "INIZIA GIOCO" PER GIOCARE', 512, 370);
-
-                const tex = new THREE.CanvasTexture(canvas);
-                const planeMesh = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.5, 0.75),
-                    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
-                );
-                this.lobbyGroup.add(planeMesh);
-
-                // Interactive 3D "INIZIA GIOCO" Button
-                const btnGeo = new THREE.BoxGeometry(0.60, 0.14, 0.05);
-                const btnMat = new THREE.MeshStandardMaterial({
-                    color: 0x00d8ff,
-                    emissive: 0x0066cc,
-                    emissiveIntensity: 0.6,
-                    metalness: 0.8,
-                    roughness: 0.2
-                });
-                const startBtn = new THREE.Mesh(btnGeo, btnMat);
-                startBtn.position.set(0, -0.25, 0.04);
-                startBtn.userData = { action: 'START_GAME' };
+                // 3D Start Button
+                const btnGeo = new THREE.BoxGeometry(0.5, 0.12, 0.05);
+                const btnMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x047857, emissiveIntensity: 0.5 });
+                this.startButtonMesh = new THREE.Mesh(btnGeo, btnMat);
+                this.startButtonMesh.position.set(0, -0.22, 0.04);
+                this.startButtonMesh.userData = { isButton: true, action: 'START_GAME' };
 
                 const btnCanvas = document.createElement('canvas');
-                btnCanvas.width = 512;
-                btnCanvas.height = 128;
+                btnCanvas.width = 512; btnCanvas.height = 128;
                 const bCtx = btnCanvas.getContext('2d');
-                bCtx.fillStyle = '#00d8ff';
-                bCtx.fillRect(0, 0, 512, 128);
-                bCtx.fillStyle = '#ffffff';
-                bCtx.font = 'bold 44px sans-serif';
-                bCtx.textAlign = 'center';
-                bCtx.textBaseline = 'middle';
-                bCtx.fillText('🚀 INIZIA GIOCO', 256, 64);
+                bCtx.fillStyle = '#10b981'; bCtx.fillRect(0,0,512,128);
+                bCtx.fillStyle = '#ffffff'; bCtx.font = 'bold 44px sans-serif'; bCtx.textAlign='center'; bCtx.textBaseline='middle';
+                bCtx.fillText('▶ INIZIA GIOCO', 256, 64);
 
-                const btnTex = new THREE.CanvasTexture(btnCanvas);
                 const btnLabel = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.58, 0.13),
-                    new THREE.MeshBasicMaterial({ map: btnTex, transparent: true })
+                    new THREE.PlaneGeometry(0.48, 0.11),
+                    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(btnCanvas), transparent: true })
                 );
                 btnLabel.position.z = 0.028;
-                startBtn.add(btnLabel);
+                this.startButtonMesh.add(btnLabel);
 
-                this.lobbyGroup.add(startBtn);
-                this.interactiveObjects.push(startBtn);
+                this.lobbyGroup.add(this.startButtonMesh);
+                this.interactiveObjects.push(this.startButtonMesh);
 
                 this.scene.add(this.lobbyGroup);
             }
 
+            // --- DEBUG HUD (Enlarged, no overlaps, draggable, no fps/speed/ray status) ---
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
-                this.hudGroup.position.set(-1.5, 1.5, -1.2);
-                this.hudGroup.rotation.y = Math.PI / 180 * 22.5;
+                this.hudGroup.position.set(-1.4, 1.5, -1.2);
+                this.hudGroup.rotation.y = Math.PI / 8;
 
-                // ENLARGED DIMENSIONS (1.1m x 1.4m) to prevent overlap
+                const hudWidth = 0.8;
+                const hudHeight = 1.2;
+
                 this.hudCanvas = document.createElement('canvas');
-                this.hudCanvas.width = 1024;
-                this.hudCanvas.height = 1300;
+                this.hudCanvas.width = 512;
+                this.hudCanvas.height = 768;
                 this.hudCtx = this.hudCanvas.getContext('2d');
 
                 this.hudTexture = new THREE.CanvasTexture(this.hudCanvas);
-                this.hudTexture.minFilter = THREE.LinearFilter;
-
-                const geo = new THREE.PlaneGeometry(1.1, 1.4);
-                const mat = new THREE.MeshBasicMaterial({
-                    map: this.hudTexture,
-                    transparent: true,
-                    side: THREE.DoubleSide
-                });
-
-                this.hudMesh = new THREE.Mesh(geo, mat);
-                this.hudMesh.userData = { isHUD: true };
+                const hudGeo = new THREE.PlaneGeometry(hudWidth, hudHeight);
+                const hudMat = new THREE.MeshBasicMaterial({ map: this.hudTexture, transparent: true, side: THREE.DoubleSide });
+                this.hudMesh = new THREE.Mesh(hudGeo, hudMat);
+                this.hudMesh.userData = { isHudPanel: true };
                 this.hudGroup.add(this.hudMesh);
+                this.interactiveObjects.push(this.hudMesh);
 
-                // Decorative Back Plate for HUD
-                const backMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
-                const backPlate = new THREE.Mesh(new THREE.BoxGeometry(1.14, 1.44, 0.02), backMat);
-                backPlate.position.z = -0.012;
-                this.hudGroup.add(backPlate);
+                const hudFrame = new THREE.Mesh(
+                    new THREE.BoxGeometry(hudWidth + 0.02, hudHeight + 0.02, 0.01),
+                    new THREE.MeshStandardMaterial({ color: 0x1e1b4b, metalness: 0.8, roughness: 0.3 })
+                );
+                hudFrame.position.z = -0.008;
+                this.hudGroup.add(hudFrame);
+
+                // HUD Buttons Setup
+                this.createHUDButton('ESCI', -0.2, -0.45, 0.32, 0.08, 0xef4444, 'EXIT_LOBBY');
+                this.createHUDButton('RESET', 0.2, -0.45, 0.32, 0.08, 0x3b82f6, 'RESET_GAME');
+                
+                this.createHUDButton('SENS -', -0.2, -0.34, 0.32, 0.07, 0x8b5cf6, 'SENS_DOWN');
+                this.createHUDButton('SENS +', 0.2, -0.34, 0.32, 0.07, 0x8b5cf6, 'SENS_UP');
+
+                this.createHUDButton('MODO', -0.2, -0.23, 0.32, 0.07, 0x10b981, 'TOGGLE_MODE');
+                this.createHUDButton('MANO', 0.2, -0.23, 0.32, 0.07, 0xf59e0b, 'TOGGLE_HAND');
 
                 this.scene.add(this.hudGroup);
-
-                // Helper function for 3D interactive HUD buttons
-                const makeHUDButton = (label, xPos, yPos, w, h, action, colorHex = 0x00d8ff) => {
-                    const bGeo = new THREE.BoxGeometry(w, h, 0.03);
-                    const bMat = new THREE.MeshStandardMaterial({
-                        color: colorHex,
-                        emissive: colorHex,
-                        emissiveIntensity: 0.4,
-                        metalness: 0.8
-                    });
-                    const btn = new THREE.Mesh(bGeo, bMat);
-                    btn.position.set(xPos, yPos, 0.02);
-                    btn.userData = { action: action, isHUD: true };
-
-                    const c = document.createElement('canvas');
-                    c.width = Math.round(w * 1000); c.height = Math.round(h * 1000);
-                    const cCtx = c.getContext('2d');
-                    cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
-                    cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
-                    cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif';
-                    cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
-                    cCtx.fillText(label, c.width / 2, c.height / 2);
-
-                    const lMesh = new THREE.Mesh(
-                        new THREE.PlaneGeometry(w - 0.01, h - 0.01),
-                        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true })
-                    );
-                    lMesh.position.z = 0.016;
-                    btn.add(lMesh);
-
-                    this.hudMesh.add(btn);
-                    this.interactiveObjects.push(btn);
-                    return btn;
-                };
-
-                // Add HUD Control Buttons with well-spaced vertical layouts
-                this.btnToggleMode = makeHUDButton("MODO: RAGGIO", 0.0, -0.08, 0.70, 0.08, 'TOGGLE_MODE');
-                this.btnToggleHand = makeHUDButton("MANO: DESTRO", 0.0, -0.18, 0.70, 0.08, 'TOGGLE_HAND');
-                makeHUDButton("SENS -", -0.18, -0.28, 0.32, 0.08, 'SENS_DOWN');
-                makeHUDButton("SENS +", 0.18, -0.28, 0.32, 0.08, 'SENS_UP');
-
-                // ESCI DAL GIOCO Button
-                makeHUDButton("🚪 ESCI DAL GIOCO", 0.0, -0.42, 0.70, 0.09, 'EXIT_GAME', 0xff2a55);
-
-                this.renderHUDCanvas();
+                this.updateHUDCanvas();
             }
 
-            renderHUDCanvas() {
-                if (!this.hudCtx) return;
+            createHUDButton(label, x, y, w, h, colorHex, action) {
+                const btnGeo = new THREE.BoxGeometry(w, h, 0.03);
+                const btnMat = new THREE.MeshStandardMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.3 });
+                const btn = new THREE.Mesh(btnGeo, btnMat);
+                btn.position.set(x, y, 0.02);
+                btn.userData = { isButton: true, action: action };
+
+                const bCanvas = document.createElement('canvas'); bCanvas.width = 256; bCanvas.height = 64;
+                const bCtx = bCanvas.getContext('2d');
+                bCtx.fillStyle = '#' + colorHex.toString(16).padStart(6, '0'); bCtx.fillRect(0,0,256,64);
+                bCtx.fillStyle = '#ffffff'; bCtx.font = 'bold 24px sans-serif'; bCtx.textAlign='center'; bCtx.textBaseline='middle';
+                bCtx.fillText(label, 128, 32);
+
+                const bMesh = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.95, h * 0.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bCanvas), transparent: true }));
+                bMesh.position.z = 0.016;
+                btn.add(bMesh);
+
+                this.hudGroup.add(btn);
+                this.interactiveObjects.push(btn);
+            }
+
+            updateHUDCanvas() {
                 const ctx = this.hudCtx;
-                const w = 1024;
-                const h = 1300;
+                const w = this.hudCanvas.width;
+                const h = this.hudCanvas.height;
 
-                ctx.clearRect(0, 0, w, h);
-
-                // HUD Panel Box
-                ctx.fillStyle = 'rgba(10, 16, 32, 0.94)';
-                ctx.strokeStyle = '#00f0ff';
-                ctx.lineWidth = 8;
-                ctx.beginPath();
-                ctx.roundRect(20, 20, w - 40, h - 40, 28);
-                ctx.fill();
-                ctx.stroke();
-
-                // Header
-                ctx.textAlign = 'center';
-                ctx.fillStyle = '#00f0ff';
-                ctx.font = 'bold 44px sans-serif';
-                ctx.fillText(`${GAME_TITLE} - DEBUG HUD`, w / 2, 80);
-
-                ctx.font = 'bold 26px monospace';
-                ctx.fillStyle = '#ff00d4';
-                ctx.fillText(`VERSIONE: ${VERSION}`, w / 2, 125);
-
-                ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-                ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
-
-                // Telemetry Stats - Well Spaced Vertical Layout
-                ctx.textAlign = 'left';
-                ctx.font = 'bold 30px monospace';
-
-                ctx.fillStyle = '#ffea00';
-                ctx.fillText(`STATO GIOCO  : ${this.gameState}`, 80, 200);
-
-                ctx.fillStyle = '#00f0ff';
-                ctx.fillText(`LIVELLO CORR : ${this.level} / 3`, 80, 250);
-
-                ctx.fillStyle = '#00ff88';
-                ctx.fillText(`PUNTEGGIO    : ${this.score.toString().padStart(6, '0')}`, 80, 300);
-
-                ctx.fillStyle = '#ff2a55';
-                const hearts = '❤️ '.repeat(Math.max(0, this.lives));
-                ctx.fillText(`VITE RIMASTE : ${hearts} (${this.lives}/3)`, 80, 350);
-
-                const activeBricks = this.bricksGroup ? this.bricksGroup.children.length : 0;
-                ctx.fillStyle = '#00f0ff';
-                ctx.fillText(`MATTONI RIMS : ${activeBricks}`, 80, 400);
-
-                ctx.fillStyle = '#ff00d4';
-                const modeText = this.controlMode === 'RAY' ? 'RAGGIO (1:1 Intersezione)' : 'INCLINAZIONE (Tilt Polso)';
-                ctx.fillText(`MODO PAD     : ${modeText}`, 80, 450);
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                ctx.fillRect(0, 0, w, h);
 
                 ctx.fillStyle = '#38bdf8';
-                ctx.fillText(`CONTROLLER   : MANO ${this.activeHand}`, 80, 500);
-
-                if (this.controlMode === 'TILT') {
-                    ctx.fillStyle = '#00f0ff';
-                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (ATTIVA)`, 80, 550);
-                } else {
-                    ctx.fillStyle = '#64748b';
-                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (Inattiva in Raggio)`, 80, 550);
-                }
-
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = '22px sans-serif';
+                ctx.font = 'bold 32px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Premi Tasto B sul Controller Touch per ON/OFF Raggi Laser', w / 2, 1140);
-                ctx.fillText('💡 TRASCINA QUESTO HUD TENENDO PREMUTO IL TASTO GRIP', w / 2, 1180);
-                ctx.fillText('Sincronizzazione Quota Y=0 (local-floor) Attiva', w / 2, 1220);
+                ctx.fillText('ARKANIUM HUD', w / 2, 45);
+
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(20, 65); ctx.lineTo(w - 20, 65); ctx.stroke();
+
+                ctx.textAlign = 'left';
+                ctx.font = '26px monospace';
+                
+                const lines = [
+                    { label: 'STATO:', val: this.gameState, color: '#facc15' },
+                    { label: 'PUNTEGGIO:', val: `${this.score}`, color: '#ffffff' },
+                    { label: 'VITE:', val: '❤️ '.repeat(Math.max(0, this.lives)), color: '#f43f5e' },
+                    { label: 'LIVELLO:', val: `${this.level}`, color: '#38bdf8' },
+                    { label: 'MATTONI:', val: `${this.bricksRemaining}`, color: '#fb923c' },
+                    { label: 'SENSIBILITÀ:', val: `${this.sensitivity.toFixed(1)}x`, color: '#c084fc' },
+                    { label: 'MODALITÀ:', val: this.controlMode, color: '#4ade80' },
+                    { label: 'MANO:', val: this.activeHand, color: '#f43f5e' }
+                ];
+
+                let y = 115;
+                lines.forEach(item => {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(item.label, 30, y);
+                    ctx.fillStyle = item.color;
+                    ctx.fillText(item.val, 260, y);
+                    y += 45;
+                });
 
                 this.hudTexture.needsUpdate = true;
             }
 
-            initXRControllers() {
-                this.controllers = [];
+            // --- WEBXR & CONTROLLERS ---
+            initWebXR() {
+                document.getElementById('btn-vr').addEventListener('click', () => { audio.init(); this.requestXRSession('immersive-vr'); });
+                document.getElementById('btn-ar').addEventListener('click', () => { audio.init(); this.requestXRSession('immersive-ar'); });
 
-                for (let i = 0; i < 2; i++) {
-                    const controller = this.renderer.xr.getController(i);
-                    controller.addEventListener('selectstart', (e) => this.onXRSelectStart(e));
-                    controller.addEventListener('squeezestart', (e) => this.onXRSqueezeStart(e));
-                    controller.addEventListener('squeezeend', (e) => this.onXRSqueezeEnd(e));
+                this.controller1 = this.renderer.xr.getController(0);
+                this.controller1.addEventListener('selectstart', (e) => this.onSelectStart(e, 0));
+                this.controller1.addEventListener('squeezestart', (e) => this.onSqueezeStart(e, 0));
+                this.controller1.addEventListener('squeezeend', (e) => this.onSqueezeEnd(e, 0));
+                this.scene.add(this.controller1);
 
-                    // Laser pointer line
-                    const laserGeo = new THREE.BufferGeometry().setFromPoints([
-                        new THREE.Vector3(0, 0, 0),
-                        new THREE.Vector3(0, 0, -3)
-                    ]);
-                    const laserMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.6 });
-                    const laser = new THREE.Line(laserGeo, laserMat);
-                    laser.name = 'laserLine';
-                    controller.add(laser);
+                this.controller2 = this.renderer.xr.getController(1);
+                this.controller2.addEventListener('selectstart', (e) => this.onSelectStart(e, 1));
+                this.controller2.addEventListener('squeezestart', (e) => this.onSqueezeStart(e, 1));
+                this.controller2.addEventListener('squeezeend', (e) => this.onSqueezeEnd(e, 1));
+                this.scene.add(this.controller2);
 
-                    // Reticle targeting point
-                    const pointer = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.015, 16, 16),
-                        new THREE.MeshBasicMaterial({ color: 0x00f0ff })
-                    );
-                    pointer.position.z = -3;
-                    pointer.name = 'pointerReticle';
-                    controller.add(pointer);
+                // Controller Ray graphics (controlled by raysVisible flag)
+                const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]);
+                const rayMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.6 });
+                
+                this.ray1 = new THREE.Line(rayGeo, rayMat);
+                this.controller1.add(this.ray1);
+                
+                this.ray2 = new THREE.Line(rayGeo, rayMat);
+                this.controller2.add(this.ray2);
 
-                    this.scene.add(controller);
-                    this.controllers.push(controller);
-                }
-            }
+                this.renderer.xr.addEventListener('sessionstart', () => {
+                    const session = this.renderer.xr.getSession();
+                    this.renderer.xr.setReferenceSpaceType('local-floor');
 
-            initWebXRLauncher() {
-                const btnVR = document.getElementById('btn-vr');
-                const btnAR = document.getElementById('btn-ar');
-
-                if (!navigator.xr) {
-                    showToast('WebXR non rilevato. Usa un visore VR/AR compatibile.', 'fa-triangle-exclamation');
-                    return;
-                }
-
-                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
-                    if (supported && btnVR) {
-                        btnVR.addEventListener('click', () => this.requestXRSession('immersive-vr'));
-                    }
-                });
-
-                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-                    if (supported && btnAR) {
-                        btnAR.addEventListener('click', () => this.requestXRSession('immersive-ar'));
-                    }
-                });
-
-                window.addEventListener('resize', () => {
-                    this.camera.aspect = window.innerWidth / window.innerHeight;
-                    this.camera.updateProjectionMatrix();
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    // Listen to gamepad button inputs for 'B' button toggle (button index 5 on right controller typically)
+                    session.addEventListener('inputsourceschange', () => {
+                        // Optional input source tracking
+                    });
                 });
             }
 
             async requestXRSession(mode) {
-                audio.init();
+                if (!navigator.xr) return;
                 try {
-                    const sessionInit = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] };
-                    const session = await navigator.xr.requestSession(mode, sessionInit);
+                    const session = await navigator.xr.requestSession(mode, { optionalFeatures: ['local-floor', 'bounded-floor'] });
                     this.renderer.xr.setSession(session);
-
-                    if (mode === 'immersive-ar') {
-                        this.scene.background = null;
-                        this.floorGrid.visible = false;
-                        this.renderer.setClearColor(0x000000, 0);
-                    } else {
-                        this.scene.background = new THREE.Color(0x04070d);
-                        this.floorGrid.visible = true;
-                        this.renderer.setClearColor(0x04070d, 1);
-                    }
-
-                    session.addEventListener('end', () => {
-                        this.scene.background = new THREE.Color(0x04070d);
-                        this.floorGrid.visible = true;
-                        this.renderHUDCanvas();
-                    });
-
-                    showToast(`Sessione ${mode.toUpperCase()} avviata!`, 'fa-circle-check');
-                } catch (err) {
-                    console.error('Errore avvio WebXR:', err);
-                    showToast(`Impossibile avviare sessione ${mode.toUpperCase()}`, 'fa-triangle-exclamation');
-                }
+                    document.getElementById('overlay-ui').style.display = 'none';
+                    if (mode === 'immersive-ar') this.scene.background = null;
+                } catch (e) { console.error(e); }
             }
 
-            onXRSelectStart(event) {
+            onSelectStart(event, controllerIndex) {
                 audio.init();
                 const controller = event.target;
                 this.tempMatrix.identity().extractRotation(controller.matrixWorld);
@@ -834,386 +567,294 @@
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
                 const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
+
                 if (intersects.length > 0) {
-                    let hitObj = intersects[0].object;
-                    while (hitObj && !hitObj.userData.action && hitObj.parent) {
-                        hitObj = hitObj.parent;
-                    }
-                    if (hitObj && hitObj.userData.action) {
-                        audio.uiClick();
-                        this.handleAction(hitObj.userData.action);
+                    let obj = intersects[0].object;
+                    if (obj.userData.isHudPanel) {
+                        // Grab HUD
+                        this.isHudGrabbed = true;
+                        this.hudGrabController = controller;
+                        this.hudGrabOffset.copy(this.hudGroup.position).sub(controller.position);
                         return;
                     }
-                }
 
-                if (this.gameState === 'LOBBY' || this.gameState === 'GAMEOVER') {
-                    this.startGame();
+                    while (obj && !obj.userData.action && obj.parent) {
+                        obj = obj.parent;
+                    }
+                    if (obj && obj.userData.action) {
+                        this.handleUIAction(obj.userData.action);
+                    }
                 }
             }
 
-            onXRSqueezeStart(event) {
+            onSqueezeStart(event, index) {
+                // Squeeze can also grab HUD if close
                 const controller = event.target;
-                this.tempMatrix.identity().extractRotation(controller.matrixWorld);
-
-                this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-                this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
-
-                const intersects = this.raycaster.intersectObject(this.hudMesh, true);
-                if (intersects.length > 0) {
-                    this.isDraggingHUD = true;
-                    this.hudDragController = controller;
-
-                    const ctrlPos = new THREE.Vector3();
-                    const ctrlQuat = new THREE.Quaternion();
-                    controller.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
-
-                    this.hudDragOffset.copy(this.hudGroup.position).sub(ctrlPos);
-                    this.hudDragQuatOffset.copy(ctrlQuat).invert().multiply(this.hudGroup.quaternion);
-
-                    showToast('Trascinamento HUD attivo', 'fa-hand-rock');
+                const dist = controller.position.distanceTo(this.hudGroup.position);
+                if (dist < 0.6) {
+                    this.isHudGrabbed = true;
+                    this.hudGrabController = controller;
+                    this.hudGrabOffset.copy(this.hudGroup.position).sub(controller.position);
                 }
             }
 
-            onXRSqueezeEnd(event) {
-                if (this.isDraggingHUD && event.target === this.hudDragController) {
-                    this.isDraggingHUD = false;
-                    this.hudDragController = null;
-                    showToast('HUD riposizionato', 'fa-location-dot');
+            onSqueezeEnd(event, index) {
+                if (this.isHudGrabbed && event.target === this.hudGrabController) {
+                    this.isHudGrabbed = false;
                 }
             }
 
-            toggleLaserRays() {
-                this.showLasersInGame = !this.showLasersInGame;
-                this.renderHUDCanvas();
-                showToast(`Raggi Laser in gioco: ${this.showLasersInGame ? 'ATTIVI' : 'SPENTI'}`, 'fa-bolt');
+            handleUIAction(action) {
+                audio.scoreUp();
+                switch(action) {
+                    case 'START_GAME':
+                        this.startGame();
+                        break;
+                    case 'EXIT_LOBBY':
+                        this.resetToLobby();
+                        break;
+                    case 'RESET_GAME':
+                        this.startGame();
+                        break;
+                    case 'SENS_DOWN':
+                        this.sensitivity = Math.max(1.0, this.sensitivity - 0.3);
+                        break;
+                    case 'SENS_UP':
+                        this.sensitivity = Math.min(5.0, this.sensitivity + 0.3);
+                        break;
+                    case 'TOGGLE_MODE':
+                        this.controlMode = this.controlMode === 'RAGGIO' ? 'TILT' : 'RAGGIO';
+                        break;
+                    case 'TOGGLE_HAND':
+                        this.activeHand = this.activeHand === 'DESTRO' ? 'SINISTRO' : 'DESTRO';
+                        break;
+                }
+                this.updateHUDCanvas();
             }
 
-            updateButtonLabels() {
-                if (this.btnToggleMode) {
-                    const labelMesh = this.btnToggleMode.children[0];
-                    if (labelMesh) {
-                        const c = labelMesh.material.map.image;
-                        const cCtx = c.getContext('2d');
-                        cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
-                        cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
-                        cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif'; cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
-                        cCtx.fillText(this.controlMode === 'RAY' ? 'MODO: RAGGIO' : 'MODO: INCLINAZIONE', c.width / 2, c.height / 2);
-                        labelMesh.material.map.needsUpdate = true;
+            initEventListeners() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                // Keyboard listener to toggle rays with 'b' or 'B'
+                window.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() === 'b') {
+                        this.raysVisible = !this.raysVisible;
                     }
-                }
-
-                if (this.btnToggleHand) {
-                    const labelMesh = this.btnToggleHand.children[0];
-                    if (labelMesh) {
-                        const c = labelMesh.material.map.image;
-                        const cCtx = c.getContext('2d');
-                        cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
-                        cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
-                        cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif'; cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
-                        cCtx.fillText(`MANO: ${this.activeHand}`, c.width / 2, c.height / 2);
-                        labelMesh.material.map.needsUpdate = true;
-                    }
-                }
-            }
-
-            handleAction(action) {
-                if (action === 'START_GAME') {
-                    this.startGame();
-                } else if (action === 'EXIT_GAME') {
-                    this.returnToLobby();
-                    showToast('Ritorno alla Lobby', 'fa-house');
-                } else if (action === 'TOGGLE_MODE') {
-                    this.controlMode = this.controlMode === 'RAY' ? 'TILT' : 'RAY';
-                    this.updateButtonLabels();
-                    this.renderHUDCanvas();
-                    showToast(`Modalità Controller: ${this.controlMode === 'RAY' ? 'RAGGIO 1:1' : 'INCLINAZIONE TILT'}`, 'fa-sliders');
-                } else if (action === 'TOGGLE_HAND') {
-                    this.activeHand = this.activeHand === 'RIGHT' ? 'LEFT' : 'RIGHT';
-                    this.updateButtonLabels();
-                    this.renderHUDCanvas();
-                    showToast(`Mano Attiva: ${this.activeHand === 'RIGHT' ? 'DESTRO' : 'SINISTRO'}`, 'fa-hand');
-                } else if (action === 'SENS_DOWN') {
-                    this.paddleSensitivity = Math.max(1.0, this.paddleSensitivity - 0.5);
-                    this.renderHUDCanvas();
-                    showToast(`Sensibilità TILT: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
-                } else if (action === 'SENS_UP') {
-                    this.paddleSensitivity = Math.min(4.0, this.paddleSensitivity + 0.5);
-                    this.renderHUDCanvas();
-                    showToast(`Sensibilità TILT: ${this.paddleSensitivity.toFixed(1)}x`, 'fa-sliders');
-                }
+                });
             }
 
             startGame() {
                 this.gameState = 'PLAYING';
-                this.level = 1;
                 this.score = 0;
                 this.lives = 3;
-                this.speedMultiplier = 1.0;
-                this.totalBricksHitInLife = 0;
-                this.showLasersInGame = false;
+                this.level = 1;
+                this.bricksHitTotal = 0;
+                this.ballSpeedMultiplier = 1.0;
                 this.lobbyGroup.visible = false;
-
-                this.buildBricksForLevel(this.level);
-                this.resetBallAndPaddle();
+                this.buildBrickMatrix();
+                this.resetPaddlePosition();
+                this.resetBall();
                 this.launchBall();
-                this.renderHUDCanvas();
-                showToast(`Livello ${this.level} Avviato! Buona fortuna!`, 'fa-gamepad');
+                audio.scoreUp();
+                this.updateHUDCanvas();
             }
 
-            advanceLevel() {
-                this.level++;
-                if (this.level > 3) {
-                    this.gameState = 'VICTORY';
-                    audio.gameWin();
-                    showToast('VITTORIA FINALE! Hai completato tutti i 3 livelli!', 'fa-trophy');
-                    this.returnToLobby();
-                } else {
-                    audio.levelUp();
-                    showToast(`LIVELLO ${this.level - 1} COMPLETATO! Avvio Livello ${this.level}...`, 'fa-circle-check');
-                    this.speedMultiplier = 1.0;
-                    this.totalBricksHitInLife = 0;
-                    this.buildBricksForLevel(this.level);
-                    this.resetBallAndPaddle();
-                    this.launchBall();
-                    this.renderHUDCanvas();
-                }
-            }
-
-            returnToLobby() {
+            resetToLobby() {
                 this.gameState = 'LOBBY';
                 this.lobbyGroup.visible = true;
-                this.resetBallAndPaddle();
-                this.renderHUDCanvas();
+                this.resetPaddlePosition();
+                this.resetBall();
+                this.updateHUDCanvas();
             }
 
-            updatePhysics(dt) {
-                if (this.gameState !== 'PLAYING') return;
+            updatePaddlePosition(targetX) {
+                const maxExtent = (FIELD.width / 2) - (this.paddleWidth / 2);
+                this.paddle.position.x = THREE.MathUtils.clamp(targetX, -maxExtent, maxExtent);
+            }
 
-                // Move Ball
-                this.ballMesh.position.x += this.ballVel.x * dt;
-                this.ballMesh.position.y += this.ballVel.y * dt;
+            checkGamepadBButton() {
+                if (!this.renderer.xr.isPresenting) return;
+                const session = this.renderer.xr.getSession();
+                if (!session || !session.inputSources) return;
 
-                const ballR = 0.045;
-                const halfW = FIELD.width / 2;
-
-                // Wall bounce
-                if (this.ballMesh.position.x - ballR <= -halfW) {
-                    this.ballMesh.position.x = -halfW + ballR;
-                    this.ballVel.x = Math.abs(this.ballVel.x);
-                    audio.wallHit();
-                } else if (this.ballMesh.position.x + ballR >= halfW) {
-                    this.ballMesh.position.x = halfW - ballR;
-                    this.ballVel.x = -Math.abs(this.ballVel.x);
-                    audio.wallHit();
-                }
-
-                // Ceiling bounce (2.70m topY = 3.00m)
-                if (this.ballMesh.position.y + ballR >= FIELD.topY) {
-                    this.ballMesh.position.y = FIELD.topY - ballR;
-                    this.ballVel.y = -Math.abs(this.ballVel.y);
-                    audio.wallHit();
-                }
-
-                // Bottom loss condition
-                if (this.ballMesh.position.y - ballR <= FIELD.bottomY) {
-                    this.lives--;
-                    audio.lifeLost();
-
-                    this.speedMultiplier = 1.0;
-                    this.totalBricksHitInLife = 0;
-
-                    if (this.lives <= 0) {
-                        this.gameState = 'GAMEOVER';
-                        audio.gameOver();
-                        showToast('GAME OVER! Vite esaurite. Ritorno in Lobby...', 'fa-skull');
-                        this.returnToLobby();
-                    } else {
-                        showToast(`Palla persa! Velocità resettata. Vite rimaste: ${this.lives}`, 'fa-heart-crack');
-                        this.resetBallAndPaddle();
-                        this.launchBall();
+                for (let source of session.inputSources) {
+                    if (source.gamepad) {
+                        // Button index 5 or 4 is typically B or Y on Quest controllers
+                        const gp = source.gamepad;
+                        if (gp.buttons && gp.buttons[5] && gp.buttons[5].pressed) {
+                            if (!this._bPressedLastFrame) {
+                                this.raysVisible = !this.raysVisible;
+                                this._bPressedLastFrame = true;
+                            }
+                        } else {
+                            this._bPressedLastFrame = false;
+                        }
                     }
-                    this.renderHUDCanvas();
+                }
+            }
+
+            updateXRControllers() {
+                if (!this.renderer.xr.isPresenting) return;
+                
+                this.checkGamepadBButton();
+
+                // Toggle ray line visibility
+                if (this.ray1 && this.ray2) {
+                    this.ray1.visible = this.raysVisible;
+                    this.ray2.visible = this.raysVisible;
+                }
+
+                const session = this.renderer.xr.getSession();
+                if (!session) return;
+
+                // Identify correct controller based on activeHand
+                // controller0 = Right (typically), controller1 = Left (or vice versa depending on handedness)
+                const ctrl = this.activeHand === 'DESTRO' ? this.controller2 : this.controller1;
+                if (!ctrl) return;
+
+                if (this.isHudGrabbed && this.hudGrabController) {
+                    this.hudGroup.position.copy(this.hudGrabController.position).add(this.hudGrabOffset);
                     return;
                 }
 
-                // Paddle collision
-                const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
-                const ballBox = new THREE.Box3().setFromObject(this.ballMesh);
+                if (this.gameState === 'PLAYING') {
+                    if (this.controlMode === 'RAGGIO') {
+                        // Mode 1: Ray intersection with field plane
+                        const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
+                        const rayOrigin = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
+                        const rayDir = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMat);
 
-                if (padBox.intersectsBox(ballBox) && this.ballVel.y < 0) {
-                    this.ballVel.y = Math.abs(this.ballVel.y);
-                    const hitOffset = (this.ballMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
+                        // Plane Z in world coordinates
+                        const planeZ = FIELD.zPos;
+                        if (rayDir.z !== 0) {
+                            const t = (planeZ - rayOrigin.z) / rayDir.z;
+                            if (t > 0) {
+                                const hitX = rayOrigin.x + rayDir.x * t;
+                                this.updatePaddlePosition(hitX);
+                            }
+                        }
+                    } else {
+                        // Mode 2: Absolute Z-axis roll/tilt rotation with sensitivity
+                        const euler = new THREE.Euler().setFromRotationMatrix(ctrl.matrixWorld, 'YXZ');
+                        const tilt = euler.z; // Roll tilt
+                        const targetX = tilt * this.sensitivity * 1.5;
+                        this.updatePaddlePosition(targetX);
+                    }
+                }
+            }
 
-                    const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
-                    this.ballVel.x = hitOffset * (currentSpeed * 0.85);
-                    this.ballVel.normalize().multiplyScalar(currentSpeed);
+            updatePhysics(delta) {
+                if (this.gameState !== 'PLAYING') return;
+
+                this.ball.position.addScaledVector(this.ballVelocity, delta);
+
+                const bPos = this.ball.position;
+                const r = this.ballRadius;
+                const minX = -FIELD.width / 2 + r;
+                const maxX = FIELD.width / 2 - r;
+                const maxY = FIELD.topY - r;
+
+                // Walls
+                if (bPos.x <= minX) { bPos.x = minX; this.ballVelocity.x *= -1; audio.wallHit(); }
+                else if (bPos.x >= maxX) { bPos.x = maxX; this.ballVelocity.x *= -1; audio.wallHit(); }
+                if (bPos.y >= maxY) { bPos.y = maxY; this.ballVelocity.y *= -1; audio.wallHit(); }
+
+                // Paddle
+                const pPos = this.paddle.position;
+                const halfPWidth = this.paddleWidth / 2;
+                const halfPHeight = this.paddleHeight / 2;
+
+                if (bPos.y - r <= pPos.y + halfPHeight && 
+                    bPos.y + r >= pPos.y - halfPHeight &&
+                    bPos.x >= pPos.x - halfPWidth && 
+                    bPos.x <= pPos.x + halfPWidth &&
+                    this.ballVelocity.y < 0) {
+                    
+                    bPos.y = pPos.y + halfPHeight + r;
+                    const hitOffset = (bPos.x - pPos.x) / halfPWidth;
+                    const bounceAngle = hitOffset * (Math.PI / 3);
+                    const speed = this.ballVelocity.length();
+                    this.ballVelocity.x = Math.sin(bounceAngle) * speed;
+                    this.ballVelocity.y = Math.cos(bounceAngle) * speed;
                     audio.paddleHit();
                 }
 
-                // Brick collisions
+                // Bricks
                 const bricks = this.bricksGroup.children;
                 for (let i = bricks.length - 1; i >= 0; i--) {
-                    const b = bricks[i];
-                    if (!b.visible) continue;
+                    const brick = bricks[i];
+                    if (!brick.visible) continue;
 
-                    const brickBox = new THREE.Box3().setFromObject(b);
-                    if (brickBox.intersectsBox(ballBox)) {
-                        b.visible = false;
+                    const bX = brick.position.x;
+                    const bY = brick.position.y;
+                    const w2 = brick.userData.width / 2;
+                    const h2 = brick.userData.height / 2;
 
-                        // Zero-GC Particle Explosion
-                        this.particlePool.explode(b.position, b.userData.colorHex);
+                    if (bPos.x + r >= bX - w2 && bPos.x - r <= bX + w2 &&
+                        bPos.y + r >= bY - h2 && bPos.y - r <= bY + h2) {
+                        
+                        this.bricksGroup.remove(brick);
+                        brick.geometry.dispose();
+                        brick.material.dispose();
 
-                        this.bricksGroup.remove(b);
-                        b.geometry.dispose();
-                        b.material.dispose();
+                        this.score += brick.userData.points;
+                        this.bricksRemaining--;
+                        this.bricksHitTotal++;
 
-                        this.ballVel.y = -this.ballVel.y;
-                        this.score += b.userData.points;
-                        audio.brickHit(b.userData.row);
-
-                        // Dynamic Ball Speed Increase: Every 7 bricks hit
-                        this.totalBricksHitInLife++;
-                        if (this.totalBricksHitInLife % 7 === 0) {
-                            this.speedMultiplier *= 1.08; // 8% speed boost
-                            const newSpeed = this.baseBallSpeed * this.speedMultiplier;
-                            this.ballVel.normalize().multiplyScalar(newSpeed);
-                            audio.speedBoost();
-                            showToast(`⚡ ACCELERAZIONE! Velocità palla: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
+                        // Speed increases slightly every 7 bricks hit
+                        if (this.bricksHitTotal % 7 === 0) {
+                            this.ballSpeedMultiplier += 0.15;
                         }
 
-                        // Check Level Completion
-                        if (this.bricksGroup.children.length === 0) {
-                            this.advanceLevel();
-                        } else {
-                            this.renderHUDCanvas();
-                        }
+                        this.ballVelocity.y *= -1;
+                        audio.brickHit(brick.userData.row);
 
+                        if (this.bricksRemaining <= 0) {
+                            audio.scoreUp();
+                            this.level++;
+                            this.buildBrickMatrix();
+                            this.resetBall();
+                            this.launchBall();
+                        }
+                        this.updateHUDCanvas();
                         break;
                     }
                 }
+
+                // Ball Out Bottom (Life Lost)
+                if (bPos.y < FIELD.bottomY - 0.2) {
+                    this.lives--;
+                    audio.gameOver();
+                    
+                    // Reset speed on life loss as requested
+                    this.ballSpeedMultiplier = 1.0;
+
+                    if (this.lives <= 0) {
+                        this.gameState = 'GAMEOVER';
+                        setTimeout(() => this.resetToLobby(), 2000);
+                    } else {
+                        this.resetBall();
+                        this.launchBall();
+                    }
+                    this.updateHUDCanvas();
+                }
             }
 
-            updatePaddleAndControllers() {
-                const halfPad = this.paddleWidth / 2;
-                const maxClampedX = FIELD.width / 2 - halfPad;
-
-                if (this.renderer.xr.isPresenting) {
-                    const session = this.renderer.xr.getSession();
-
-                    // Check Button B press on Touch Controller
-                    if (session) {
-                        for (const inputSource of session.inputSources) {
-                            if (inputSource.gamepad && inputSource.handedness === 'right') {
-                                const gamepad = inputSource.gamepad;
-                                const btnB = gamepad.buttons[5] || gamepad.buttons[1];
-                                if (btnB) {
-                                    const isPressed = btnB.pressed;
-                                    if (isPressed && !this.prevButtonBState) {
-                                        audio.init();
-                                        this.toggleLaserRays();
-                                    }
-                                    this.prevButtonBState = isPressed;
-                                }
-                            }
-                        }
-                    }
-
-                    // Update HUD position if dragging
-                    if (this.isDraggingHUD && this.hudDragController) {
-                        const ctrlPos = new THREE.Vector3();
-                        const ctrlQuat = new THREE.Quaternion();
-                        this.hudDragController.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
-
-                        this.hudGroup.position.copy(ctrlPos).add(this.hudDragOffset);
-                        this.hudGroup.quaternion.copy(ctrlQuat).multiply(this.hudDragQuatOffset);
-                    }
-
-                    // Select active controller based on chosen Handedness ('RIGHT' or 'LEFT')
-                    let activeController = null;
-                    if (session && session.inputSources) {
-                        const targetHandStr = this.activeHand.toLowerCase();
-                        for (let i = 0; i < session.inputSources.length; i++) {
-                            const src = session.inputSources[i];
-                            if (src.handedness === targetHandStr) {
-                                activeController = this.controllers[i] || this.controllers[0];
-                                break;
-                            }
-                        }
-                    }
-                    if (!activeController) {
-                        activeController = (this.activeHand === 'RIGHT') ? (this.controllers[1] || this.controllers[0]) : (this.controllers[0] || this.controllers[1]);
-                    }
-
-                    if (activeController) {
-                        if (this.controlMode === 'RAY') {
-                            // MODE 1: RAY INTERSECTION
-                            this.tempMatrix.identity().extractRotation(activeController.matrixWorld);
-                            this.rayOrigin.setFromMatrixPosition(activeController.matrixWorld);
-                            this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
-
-                            const ray = new THREE.Ray(this.rayOrigin, this.rayDir);
-                            if (ray.intersectPlane(this.playfieldPlane, this.targetPoint)) {
-                                this.paddleX = this.targetPoint.x;
-                            }
-                        } else if (this.controlMode === 'TILT') {
-                            // MODE 2: CONTROLLER TILT / ROTATION
-                            const euler = new THREE.Euler().setFromQuaternion(activeController.quaternion, 'ZYX');
-                            const rollAngle = euler.z;
-                            this.paddleX = -rollAngle * (FIELD.width / 1.2) * this.paddleSensitivity;
-                        }
-                    }
-                }
-
-                // Laser Ray Visibility Management
-                const lasersVisible = (this.gameState !== 'PLAYING') || this.showLasersInGame;
-                this.controllers.forEach((ctrl) => {
-                    const line = ctrl.getObjectByName('laserLine');
-                    const reticle = ctrl.getObjectByName('pointerReticle');
-                    if (line) line.visible = lasersVisible;
-                    if (reticle) reticle.visible = lasersVisible;
-                });
-
-                this.paddleX = THREE.MathUtils.clamp(this.paddleX, -maxClampedX, maxClampedX);
-                this.paddleMesh.position.x = this.paddleX;
-            }
-
-            render(timestamp, frame) {
-                const dt = 0.016;
-
-                this.updatePaddleAndControllers();
-                this.updatePhysics(dt);
-
-                // Oscillating Brick Matrix Animation
-                if (this.bricksGroup && this.bricksGroup.children.length > 0) {
-                    const animTime = performance.now() * 0.002;
-                    for (let i = 0; i < this.bricksGroup.children.length; i++) {
-                        const b = this.bricksGroup.children[i];
-                        if (b.visible && b.userData) {
-                            const r = b.userData.row || 0;
-                            const c = b.userData.col || 0;
-                            // Subtle oscillating rotation on Y and Z axes
-                            b.rotation.z = Math.sin(animTime + r * 0.5 + c * 0.3) * 0.06;
-                            b.rotation.y = Math.cos(animTime * 0.8 + c * 0.4) * 0.05;
-                        }
-                    }
-                }
-
-                // Update particle pool
-                this.particlePool.update(dt);
-
-                // Pulse ball light
-                if (this.ballLight) {
-                    this.ballLight.intensity = 1.2 + Math.sin(performance.now() * 0.01) * 0.4;
-                }
-
+            render(time, frame) {
+                const delta = 0.016;
+                this.updateXRControllers();
+                this.updatePhysics(delta);
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
-        // --- APPLICATION ENTRY POINT ---
-        window.onload = () => {
-            window.app = new ARkaniumXRApp();
-        };
+        window.addEventListener('DOMContentLoaded', () => {
+            window.app = new ArkanoidApp();
+        });
     </script>
 </body>
 </html>
