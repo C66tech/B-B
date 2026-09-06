@@ -78,7 +78,7 @@
             zPos: -1.8
         };
 
-        const BRICKS_COLS = 13; // 13 columns as requested
+        const BRICKS_COLS = 13;
         const ROW_COLORS = [0xff3366, 0xff9900, 0xffcc00, 0x33cc66, 0x3399ff, 0xa855f7];
 
         // --- AUDIO SYNTHESIZER ---
@@ -136,15 +136,15 @@
                 this.ballVelocity = new THREE.Vector3(0, 0, 0);
 
                 // Control Settings
-                this.controlMode = 'RAGGIO'; // 'RAGGIO' or 'TILT'
-                this.activeHand = 'DESTRO';    // 'DESTRO' or 'SINISTRO'
+                this.controlMode = 'RAGGIO';
+                this.activeHand = 'DESTRO';
                 this.sensitivity = 1.8;
 
-                // HUD Grabbing / Dragging State
+                // HUD Grabbing State
                 this.isHudGrabbed = false;
                 this.hudGrabOffset = new THREE.Vector3();
 
-                // Rays visibility state (off during gameplay by default)
+                // Rays visibility state
                 this.raysVisible = false;
 
                 this.mousePosition = new THREE.Vector2();
@@ -171,7 +171,8 @@
                 this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
                 this.camera.position.set(0, 1.6, 1.2);
 
-                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "highPerformance" });
+                // Fixed WebGL Renderer initialization (removed powerPreference causing exception)
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 this.renderer.shadowMap.enabled = true;
@@ -252,7 +253,7 @@
                     b.material.dispose();
                 }
 
-                const rows = 3 + this.level; // Level 1 = 4 rows, adds 1 per level
+                const rows = 3 + this.level;
                 const gap = 0.012;
                 const totalGapsX = (BRICKS_COLS - 1) * gap;
                 const brickWidth = (FIELD.width - 0.08 - totalGapsX) / BRICKS_COLS;
@@ -346,7 +347,6 @@
                 this.ballVelocity.set(Math.sin(angle) * speed, -Math.cos(angle) * speed, 0);
             }
 
-            // --- LOBBY PANEL (Cleaned up per instructions) ---
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
                 this.lobbyGroup.position.set(0, 1.6, -1.1);
@@ -356,7 +356,6 @@
                 canvas.height = 512;
                 const ctx = canvas.getContext('2d');
 
-                // Render clean ARKANIUM title only
                 ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.strokeStyle = '#00f0ff';
@@ -376,7 +375,6 @@
                 const panelMesh = new THREE.Mesh(panelGeo, panelMat);
                 this.lobbyGroup.add(panelMesh);
 
-                // 3D Start Button
                 const btnGeo = new THREE.BoxGeometry(0.5, 0.12, 0.05);
                 const btnMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x047857, emissiveIntensity: 0.5 });
                 this.startButtonMesh = new THREE.Mesh(btnGeo, btnMat);
@@ -403,7 +401,6 @@
                 this.scene.add(this.lobbyGroup);
             }
 
-            // --- DEBUG HUD (Enlarged, no overlaps, draggable, no fps/speed/ray status) ---
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
                 this.hudGroup.position.set(-1.4, 1.5, -1.2);
@@ -432,7 +429,6 @@
                 hudFrame.position.z = -0.008;
                 this.hudGroup.add(hudFrame);
 
-                // HUD Buttons Setup
                 this.createHUDButton('ESCI', -0.2, -0.45, 0.32, 0.08, 0xef4444, 'EXIT_LOBBY');
                 this.createHUDButton('RESET', 0.2, -0.45, 0.32, 0.08, 0x3b82f6, 'RESET_GAME');
                 
@@ -510,7 +506,6 @@
                 this.hudTexture.needsUpdate = true;
             }
 
-            // --- WEBXR & CONTROLLERS ---
             initWebXR() {
                 document.getElementById('btn-vr').addEventListener('click', () => { audio.init(); this.requestXRSession('immersive-vr'); });
                 document.getElementById('btn-ar').addEventListener('click', () => { audio.init(); this.requestXRSession('immersive-ar'); });
@@ -527,7 +522,6 @@
                 this.controller2.addEventListener('squeezeend', (e) => this.onSqueezeEnd(e, 1));
                 this.scene.add(this.controller2);
 
-                // Controller Ray graphics (controlled by raysVisible flag)
                 const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]);
                 const rayMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.6 });
                 
@@ -538,13 +532,7 @@
                 this.controller2.add(this.ray2);
 
                 this.renderer.xr.addEventListener('sessionstart', () => {
-                    const session = this.renderer.xr.getSession();
                     this.renderer.xr.setReferenceSpaceType('local-floor');
-
-                    // Listen to gamepad button inputs for 'B' button toggle (button index 5 on right controller typically)
-                    session.addEventListener('inputsourceschange', () => {
-                        // Optional input source tracking
-                    });
                 });
             }
 
@@ -571,7 +559,6 @@
                 if (intersects.length > 0) {
                     let obj = intersects[0].object;
                     if (obj.userData.isHudPanel) {
-                        // Grab HUD
                         this.isHudGrabbed = true;
                         this.hudGrabController = controller;
                         this.hudGrabOffset.copy(this.hudGroup.position).sub(controller.position);
@@ -588,7 +575,6 @@
             }
 
             onSqueezeStart(event, index) {
-                // Squeeze can also grab HUD if close
                 const controller = event.target;
                 const dist = controller.position.distanceTo(this.hudGroup.position);
                 if (dist < 0.6) {
@@ -639,7 +625,6 @@
                     this.renderer.setSize(window.innerWidth, window.innerHeight);
                 });
 
-                // Keyboard listener to toggle rays with 'b' or 'B'
                 window.addEventListener('keydown', (e) => {
                     if (e.key.toLowerCase() === 'b') {
                         this.raysVisible = !this.raysVisible;
@@ -683,7 +668,6 @@
 
                 for (let source of session.inputSources) {
                     if (source.gamepad) {
-                        // Button index 5 or 4 is typically B or Y on Quest controllers
                         const gp = source.gamepad;
                         if (gp.buttons && gp.buttons[5] && gp.buttons[5].pressed) {
                             if (!this._bPressedLastFrame) {
@@ -702,7 +686,6 @@
                 
                 this.checkGamepadBButton();
 
-                // Toggle ray line visibility
                 if (this.ray1 && this.ray2) {
                     this.ray1.visible = this.raysVisible;
                     this.ray2.visible = this.raysVisible;
@@ -711,8 +694,6 @@
                 const session = this.renderer.xr.getSession();
                 if (!session) return;
 
-                // Identify correct controller based on activeHand
-                // controller0 = Right (typically), controller1 = Left (or vice versa depending on handedness)
                 const ctrl = this.activeHand === 'DESTRO' ? this.controller2 : this.controller1;
                 if (!ctrl) return;
 
@@ -723,12 +704,10 @@
 
                 if (this.gameState === 'PLAYING') {
                     if (this.controlMode === 'RAGGIO') {
-                        // Mode 1: Ray intersection with field plane
                         const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
                         const rayOrigin = new THREE.Vector3().setFromMatrixPosition(ctrl.matrixWorld);
                         const rayDir = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMat);
 
-                        // Plane Z in world coordinates
                         const planeZ = FIELD.zPos;
                         if (rayDir.z !== 0) {
                             const t = (planeZ - rayOrigin.z) / rayDir.z;
@@ -738,9 +717,8 @@
                             }
                         }
                     } else {
-                        // Mode 2: Absolute Z-axis roll/tilt rotation with sensitivity
                         const euler = new THREE.Euler().setFromRotationMatrix(ctrl.matrixWorld, 'YXZ');
-                        const tilt = euler.z; // Roll tilt
+                        const tilt = euler.z;
                         const targetX = tilt * this.sensitivity * 1.5;
                         this.updatePaddlePosition(targetX);
                     }
@@ -758,12 +736,10 @@
                 const maxX = FIELD.width / 2 - r;
                 const maxY = FIELD.topY - r;
 
-                // Walls
                 if (bPos.x <= minX) { bPos.x = minX; this.ballVelocity.x *= -1; audio.wallHit(); }
                 else if (bPos.x >= maxX) { bPos.x = maxX; this.ballVelocity.x *= -1; audio.wallHit(); }
                 if (bPos.y >= maxY) { bPos.y = maxY; this.ballVelocity.y *= -1; audio.wallHit(); }
 
-                // Paddle
                 const pPos = this.paddle.position;
                 const halfPWidth = this.paddleWidth / 2;
                 const halfPHeight = this.paddleHeight / 2;
@@ -783,7 +759,6 @@
                     audio.paddleHit();
                 }
 
-                // Bricks
                 const bricks = this.bricksGroup.children;
                 for (let i = bricks.length - 1; i >= 0; i--) {
                     const brick = bricks[i];
@@ -805,7 +780,6 @@
                         this.bricksRemaining--;
                         this.bricksHitTotal++;
 
-                        // Speed increases slightly every 7 bricks hit
                         if (this.bricksHitTotal % 7 === 0) {
                             this.ballSpeedMultiplier += 0.15;
                         }
@@ -825,12 +799,9 @@
                     }
                 }
 
-                // Ball Out Bottom (Life Lost)
                 if (bPos.y < FIELD.bottomY - 0.2) {
                     this.lives--;
                     audio.gameOver();
-                    
-                    // Reset speed on life loss as requested
                     this.ballSpeedMultiplier = 1.0;
 
                     if (this.lives <= 0) {
