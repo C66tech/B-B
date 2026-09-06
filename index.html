@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WebXR 3D Arkanoid - Quest 3 Edition v1.6.0</title>
+    <title>ARkanium v1.8.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -62,24 +62,24 @@
         </div>
     </div>
 
-    <!-- 2D WebXR Quest 3 Launcher Overlay -->
+    <!-- WebXR Launcher Overlay Header -->
     <div id="overlay-ui" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
         <!-- Top Title & Version Header -->
-        <div class="flex flex-wrap justify-between items-start gap-4">
+        <div class="flex flex-wrap justify-between items-start gap-4 w-full">
             <div class="glass-panel px-6 py-4 rounded-3xl flex items-center space-x-4 pointer-events-auto">
                 <div class="p-3 bg-gradient-to-tr from-cyan-600 to-indigo-600 rounded-2xl shadow-lg shadow-cyan-950">
-                    <i class="fa-solid fa-headset text-white text-2xl"></i>
+                    <i class="fa-solid fa-cubes-stacked text-white text-2xl"></i>
                 </div>
                 <div>
                     <div class="flex items-center space-x-2">
                         <h1 class="font-black text-2xl tracking-wider bg-gradient-to-r from-cyan-400 via-sky-200 to-pink-400 bg-clip-text text-transparent">
-                            ARKANOID 3D XR
+                            ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v1.6.0
+                            v1.8.0
                         </span>
                     </div>
-                    <p class="text-xs text-slate-300 mt-0.5">Ottimizzato esclusivamente per Meta Quest 3 (VR Immersivo &amp; AR Passthrough)</p>
+                    <p class="text-xs text-slate-300 mt-0.5">Esperienza Arcade WebXR 3D (AR Passthrough &amp; VR Immersivo)</p>
                 </div>
             </div>
 
@@ -95,26 +95,12 @@
                 </button>
             </div>
         </div>
-
-        <!-- Meta Quest 3 Controls Legend -->
-        <div class="glass-panel p-5 rounded-3xl max-w-md pointer-events-auto self-start border-l-4 border-l-cyan-400 text-xs text-slate-200 space-y-2">
-            <div class="flex items-center space-x-2 font-bold text-cyan-400 text-sm">
-                <i class="fa-solid fa-gamepad"></i>
-                <span>CONTROLLI META QUEST 3 (v1.6.0):</span>
-            </div>
-            <ul class="space-y-1.5 list-disc list-inside text-slate-300">
-                <li><strong class="text-white">Galleggiamento Local-Floor:</strong> Quota $Y=0$ sincronizzata con il pavimento reale. Base campo a +30 cm.</li>
-                <li><strong class="text-white">Pulsante B (Touch Destro):</strong> Toggle ON/OFF Raggi Laser in partita.</li>
-                <li><strong class="text-white">Modalità RAGGIO (1:1):</strong> Il Pad segue l'intersezione del raggio sul campo.</li>
-                <li><strong class="text-white">Modalità TILT (Rotazione):</strong> Il Pad scorre inclinando il polso (Sensibilità 1.0x - 4.0x su HUD).</li>
-                <li><strong class="text-white">Sistema a 3 Vite:</strong> Persa la terza palla, Game Over e ritorno in Lobby.</li>
-            </ul>
-        </div>
     </div>
 
     <script>
-        // --- GAME CONSTANTS ---
-        const VERSION = "v1.6.0";
+        // --- GAME CONSTANTS & CONFIGURATION ---
+        const GAME_TITLE = "ARkanium";
+        const VERSION = "v1.8.0";
 
         // Toast Notification System
         function showToast(message, iconClass = "fa-circle-info") {
@@ -136,7 +122,7 @@
             }, 3200);
         }
 
-        // Retro Web Audio Synthesizer Engine
+        // Web Audio Synthesizer Engine
         class RetroAudioEngine {
             constructor() {
                 this.ctx = null;
@@ -172,6 +158,12 @@
             paddleHit() { this.playTone(320, 'triangle', 0.09, 0.22); }
             wallHit() { this.playTone(210, 'sine', 0.06, 0.14); }
             brickHit(row = 0) { this.playTone(380 + (row * 60), 'square', 0.08, 0.25); }
+            speedBoost() { this.playTone(880, 'sine', 0.12, 0.2); }
+            levelUp() {
+                [523, 659, 783, 1046].forEach((f, idx) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.15, 0.22), idx * 100);
+                });
+            }
             uiClick() { this.playTone(780, 'sine', 0.05, 0.18); }
             lifeLost() { 
                 this.playTone(180, 'sawtooth', 0.2, 0.25);
@@ -183,37 +175,35 @@
                 });
             }
             gameWin() {
-                [523, 659, 783, 1046].forEach((f, idx) => {
-                    setTimeout(() => this.playTone(f, 'sine', 0.15, 0.22), idx * 120);
+                [523, 659, 783, 1046, 1318].forEach((f, idx) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.18, 0.25), idx * 120);
                 });
             }
         }
 
         const audio = new RetroAudioEngine();
 
-        // --- SPATIAL FIELD CONFIGURATION ---
+        // --- SPATIAL FIELD CONFIGURATION (Height = 2.70m, Base Y = 0.30m) ---
         const FIELD = {
             width: 2.0,       // 2.0 meters wide
-            height: 3.0,      // 3.0 meters high
+            height: 2.70,     // 2.70 meters high
             depth: 0.20,      // 20 cm depth channel
             bottomY: 0.30,    // Base at 30 cm off physical floor
-            get centerY() { return this.bottomY + (this.height / 2); },
-            get topY() { return this.bottomY + this.height; },
+            get centerY() { return this.bottomY + (this.height / 2); }, // 1.65m
+            get topY() { return this.bottomY + this.height; },         // 3.00m
             zPos: -1.80       // Field placed 1.8 meters in front of user origin
         };
 
         const BRICKS_COLS = 11;
-        const BRICKS_ROWS = 5;
-        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88];
+        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88, 0x9900ff];
 
-        // --- OBJECT POOLED BRICK PARTICLE EXPLOSION ENGINE (90Hz Zero-GC) ---
+        // Object Pooled Particle Explosion Engine
         class QuestParticlePool {
-            constructor(parentGroup, maxParticles = 90) {
-                this.parentGroup = parentGroup; // fieldGroup attached for exact local coordinates
+            constructor(parentGroup, maxParticles = 100) {
+                this.parentGroup = parentGroup;
                 this.pool = [];
                 this.sharedGeo = new THREE.BoxGeometry(0.025, 0.025, 0.025);
 
-                // Pre-allocate meshes & materials to prevent Quest 3 GC stutter
                 for (let i = 0; i < maxParticles; i++) {
                     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0 });
                     const pMesh = new THREE.Mesh(this.sharedGeo, mat);
@@ -232,7 +222,7 @@
             }
 
             explode(position, colorHex) {
-                const count = 10; // Lightweight 10 shard burst per brick
+                const count = 10;
                 let spawned = 0;
 
                 for (let i = 0; i < this.pool.length && spawned < count; i++) {
@@ -267,7 +257,7 @@
                         p.mesh.visible = false;
                     } else {
                         p.mesh.position.addScaledVector(p.velocity, dt);
-                        p.velocity.y -= 4.0 * dt; // Gravity
+                        p.velocity.y -= 4.0 * dt;
 
                         const progress = p.life / p.maxLife;
                         p.mesh.scale.setScalar(Math.max(0.01, progress));
@@ -277,37 +267,40 @@
             }
         }
 
-        // --- MAIN QUEST 3 WEBXR ARKANOID APP ---
-        class ArkanoidXRApp {
+        class ARkaniumXRApp {
             constructor() {
                 this.container = document.getElementById('webgl-container');
 
                 // Game State variables
                 this.gameState = 'LOBBY'; // 'LOBBY', 'PLAYING', 'GAMEOVER', 'VICTORY'
+                this.level = 1;           // 1, 2, 3
                 this.score = 0;
                 this.lives = 3;
-                this.ballSpeed = 2.2; // m/s
+                this.baseBallSpeed = 1.8; // Base speed m/s
+                this.speedMultiplier = 1.0;
+                this.totalBricksHitInLife = 0;
                 this.paddleWidth = 0.40;
                 this.paddleX = 0;
 
-                // Control Mode System
+                // Control Mode & Handedness
                 this.controlMode = 'RAY'; // 'RAY' or 'TILT'
+                this.activeHand = 'RIGHT'; // 'RIGHT' or 'LEFT' (Default: Destro)
                 this.paddleSensitivity = 2.0;
 
                 // Laser Ray Visibility Management
-                this.showLasersInGame = false; // Off by default in gameplay, toggled via B button
+                this.showLasersInGame = false;
                 this.prevButtonBState = false;
 
-                // Telemetry
-                this.fps = 90;
-                this.frameCount = 0;
-                this.lastFpsCheck = performance.now();
-                this.lastFrameTime = performance.now();
+                // HUD Dragging System
+                this.isDraggingHUD = false;
+                this.hudDragController = null;
+                this.hudDragOffset = new THREE.Vector3();
+                this.hudDragQuatOffset = new THREE.Quaternion();
 
                 // Interactive array for raycasting
                 this.interactiveObjects = [];
 
-                // Raycasting & Input Optimization Buffers
+                // Raycasting & Input Buffers
                 this.raycaster = new THREE.Raycaster();
                 this.tempMatrix = new THREE.Matrix4();
                 this.playfieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -FIELD.zPos);
@@ -319,13 +312,13 @@
                 this.initLighting();
                 this.initField();
                 this.initPaddleAndBall();
-                this.initLobbyPanel(); // Positioned at Z = -1.1m (in front of field at Z = -1.8m)
+                this.initLobbyPanel(); // Z = -1.1m (in front of field at Z = -1.8m)
                 this.initDebugHUD();   // Positioned on Left side (X = -1.5m, Y = 1.5m, Z = -1.2m)
                 this.particlePool = new QuestParticlePool(this.fieldGroup);
                 this.initXRControllers();
                 this.initWebXRLauncher();
 
-                // Start WebXR animation loop
+                // Start WebXR render loop
                 this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
             }
 
@@ -342,7 +335,7 @@
                 this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 this.renderer.xr.enabled = true;
 
-                // Enforce local-floor reference space for Quest Guardian physical floor sync
+                // Enforce local-floor reference space for physical floor sync
                 this.renderer.xr.setReferenceSpaceType('local-floor');
                 this.container.appendChild(this.renderer.domElement);
 
@@ -369,7 +362,7 @@
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Playfield frame wireframe box
+                // Frame wireframe box (2.70m height)
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
                 const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
@@ -404,23 +397,26 @@
                 this.scene.add(this.fieldGroup);
             }
 
-            buildBricks() {
+            buildBricksForLevel(levelNum) {
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children.pop();
                     b.geometry.dispose();
                     b.material.dispose();
                 }
 
+                // Level 1: 4 rows, Level 2: 5 rows, Level 3: 6 rows
+                const rows = Math.min(6, levelNum + 3);
+
                 const margin = 0.08;
                 const totalW = FIELD.width - margin;
                 const brickW = totalW / BRICKS_COLS - 0.01;
-                const brickH = 0.12;
+                const brickH = 0.11;
                 const brickD = FIELD.depth - 0.04;
 
                 const startX = -totalW / 2 + brickW / 2;
-                const startY = FIELD.topY - 0.25;
+                const startY = FIELD.topY - 0.22;
 
-                for (let r = 0; r < BRICKS_ROWS; r++) {
+                for (let r = 0; r < rows; r++) {
                     const colorHex = ROW_COLORS[r % ROW_COLORS.length];
                     const y = startY - r * (brickH + 0.012);
 
@@ -447,7 +443,7 @@
                             row: r,
                             col: c,
                             colorHex: colorHex,
-                            points: (BRICKS_ROWS - r) * 10
+                            points: (rows - r) * 10
                         };
 
                         this.bricksGroup.add(mesh);
@@ -493,13 +489,14 @@
             }
 
             launchBall() {
+                const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
                 const angle = (Math.random() * 0.4 - 0.2);
-                this.ballVel.set(Math.sin(angle) * this.ballSpeed, this.ballSpeed, 0);
+                this.ballVel.set(Math.sin(angle) * currentSpeed, currentSpeed, 0);
             }
 
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
-                this.lobbyGroup.position.set(0, 1.6, -1.1); // Positioned in front at Z = -1.1m
+                this.lobbyGroup.position.set(0, 1.6, -1.1); // Placed in front at Z = -1.1m
 
                 const canvas = document.createElement('canvas');
                 canvas.width = 1024;
@@ -519,20 +516,21 @@
 
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'black 72px sans-serif';
+                ctx.font = 'black 82px sans-serif';
                 ctx.shadowColor = '#00f0ff';
-                ctx.shadowBlur = 25;
-                ctx.fillText('ARKANOID 3D XR', 512, 180);
+                ctx.shadowBlur = 28;
+                ctx.fillText(GAME_TITLE, 512, 170);
 
-                ctx.font = 'bold 34px sans-serif';
+                ctx.font = 'bold 32px sans-serif';
                 ctx.fillStyle = '#ff00d4';
                 ctx.shadowColor = '#ff00d4';
-                ctx.fillText(`META QUEST 3 EDITION - ${VERSION}`, 512, 260);
+                ctx.fillText(`SPATIAL XR ARCADE - ${VERSION}`, 512, 240);
 
-                ctx.font = '24px monospace';
+                ctx.font = 'bold 24px monospace';
                 ctx.fillStyle = '#00ff88';
                 ctx.shadowBlur = 10;
-                ctx.fillText('PREMI "INIZIA GIOCO" PER GIOCARE IN VR / AR', 512, 360);
+                ctx.fillText('3 LIVELLI - SPEED BOOST - HUD DRAG', 512, 320);
+                ctx.fillText('PREMI "INIZIA GIOCO" PER GIOCARE', 512, 370);
 
                 const tex = new THREE.CanvasTexture(canvas);
                 const planeMesh = new THREE.Mesh(
@@ -581,15 +579,20 @@
             }
 
             initDebugHUD() {
+                this.hudGroup = new THREE.Group();
+                this.hudGroup.position.set(-1.5, 1.5, -1.2);
+                this.hudGroup.rotation.y = Math.PI / 180 * 22.5;
+
+                // ENLARGED DIMENSIONS (1.1m x 1.4m) to prevent overlap
                 this.hudCanvas = document.createElement('canvas');
                 this.hudCanvas.width = 1024;
-                this.hudCanvas.height = 1024;
+                this.hudCanvas.height = 1300;
                 this.hudCtx = this.hudCanvas.getContext('2d');
 
                 this.hudTexture = new THREE.CanvasTexture(this.hudCanvas);
                 this.hudTexture.minFilter = THREE.LinearFilter;
 
-                const geo = new THREE.PlaneGeometry(1.2, 1.2);
+                const geo = new THREE.PlaneGeometry(1.1, 1.4);
                 const mat = new THREE.MeshBasicMaterial({
                     map: this.hudTexture,
                     transparent: true,
@@ -597,29 +600,36 @@
                 });
 
                 this.hudMesh = new THREE.Mesh(geo, mat);
-                this.hudMesh.position.set(-1.5, 1.5, -1.2);
-                this.hudMesh.rotation.y = Math.PI / 180 * 22.5; // Angled 22.5 degrees towards user
+                this.hudMesh.userData = { isHUD: true };
+                this.hudGroup.add(this.hudMesh);
 
-                this.scene.add(this.hudMesh);
+                // Decorative Back Plate for HUD
+                const backMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
+                const backPlate = new THREE.Mesh(new THREE.BoxGeometry(1.14, 1.44, 0.02), backMat);
+                backPlate.position.z = -0.012;
+                this.hudGroup.add(backPlate);
+
+                this.scene.add(this.hudGroup);
 
                 // Helper function for 3D interactive HUD buttons
-                const makeHUDButton = (label, xPos, yPos, w, h, action) => {
+                const makeHUDButton = (label, xPos, yPos, w, h, action, colorHex = 0x00d8ff) => {
                     const bGeo = new THREE.BoxGeometry(w, h, 0.03);
                     const bMat = new THREE.MeshStandardMaterial({
-                        color: 0x00d8ff,
-                        emissive: 0x005588,
-                        emissiveIntensity: 0.5,
+                        color: colorHex,
+                        emissive: colorHex,
+                        emissiveIntensity: 0.4,
                         metalness: 0.8
                     });
                     const btn = new THREE.Mesh(bGeo, bMat);
                     btn.position.set(xPos, yPos, 0.02);
-                    btn.userData = { action: action };
+                    btn.userData = { action: action, isHUD: true };
 
                     const c = document.createElement('canvas');
                     c.width = Math.round(w * 1000); c.height = Math.round(h * 1000);
                     const cCtx = c.getContext('2d');
-                    cCtx.fillStyle = '#00d8ff'; cCtx.fillRect(0, 0, c.width, c.height);
-                    cCtx.fillStyle = '#000000'; cCtx.font = 'bold 36px sans-serif';
+                    cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
+                    cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
+                    cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif';
                     cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
                     cCtx.fillText(label, c.width / 2, c.height / 2);
 
@@ -635,11 +645,14 @@
                     return btn;
                 };
 
-                // Add HUD Control Buttons
-                this.btnToggleMode = makeHUDButton("MODO: RAGGIO", -0.20, -0.15, 0.50, 0.09, 'TOGGLE_MODE');
-                this.btnToggleLaser = makeHUDButton("RAGGI B", 0.30, -0.15, 0.28, 0.09, 'TOGGLE_LASER');
-                makeHUDButton("SENS -", -0.25, -0.28, 0.24, 0.08, 'SENS_DOWN');
-                makeHUDButton("SENS +", 0.25, -0.28, 0.24, 0.08, 'SENS_UP');
+                // Add HUD Control Buttons with well-spaced vertical layouts
+                this.btnToggleMode = makeHUDButton("MODO: RAGGIO", 0.0, -0.08, 0.70, 0.08, 'TOGGLE_MODE');
+                this.btnToggleHand = makeHUDButton("MANO: DESTRO", 0.0, -0.18, 0.70, 0.08, 'TOGGLE_HAND');
+                makeHUDButton("SENS -", -0.18, -0.28, 0.32, 0.08, 'SENS_DOWN');
+                makeHUDButton("SENS +", 0.18, -0.28, 0.32, 0.08, 'SENS_UP');
+
+                // ESCI DAL GIOCO Button
+                makeHUDButton("🚪 ESCI DAL GIOCO", 0.0, -0.42, 0.70, 0.09, 'EXIT_GAME', 0xff2a55);
 
                 this.renderHUDCanvas();
             }
@@ -648,12 +661,12 @@
                 if (!this.hudCtx) return;
                 const ctx = this.hudCtx;
                 const w = 1024;
-                const h = 1024;
+                const h = 1300;
 
                 ctx.clearRect(0, 0, w, h);
 
                 // HUD Panel Box
-                ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+                ctx.fillStyle = 'rgba(10, 16, 32, 0.94)';
                 ctx.strokeStyle = '#00f0ff';
                 ctx.lineWidth = 8;
                 ctx.beginPath();
@@ -665,62 +678,58 @@
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#00f0ff';
                 ctx.font = 'bold 44px sans-serif';
-                ctx.fillText('ARKANOID XR - QUEST 3 HUD', w / 2, 85);
+                ctx.fillText(`${GAME_TITLE} - DEBUG HUD`, w / 2, 80);
 
                 ctx.font = 'bold 26px monospace';
                 ctx.fillStyle = '#ff00d4';
-                ctx.fillText(`VERSIONE: ${VERSION}`, w / 2, 130);
+                ctx.fillText(`VERSIONE: ${VERSION}`, w / 2, 125);
 
                 ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
                 ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.moveTo(50, 150); ctx.lineTo(w - 50, 150); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
 
-                // Telemetry
+                // Telemetry Stats - Well Spaced Vertical Layout
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 28px monospace';
+                ctx.font = 'bold 30px monospace';
+
                 ctx.fillStyle = '#ffea00';
-                ctx.fillText(`STATO GIOCO  : ${this.gameState}`, 80, 210);
-                ctx.fillText(`FPS (QUEST 3): ${this.fps}`, 80, 260);
+                ctx.fillText(`STATO GIOCO  : ${this.gameState}`, 80, 200);
+
+                ctx.fillStyle = '#00f0ff';
+                ctx.fillText(`LIVELLO CORR : ${this.level} / 3`, 80, 250);
 
                 ctx.fillStyle = '#00ff88';
-                ctx.fillText(`PUNTEGGIO    : ${this.score.toString().padStart(6, '0')}`, 80, 310);
-                
-                // Lives indicator
+                ctx.fillText(`PUNTEGGIO    : ${this.score.toString().padStart(6, '0')}`, 80, 300);
+
                 ctx.fillStyle = '#ff2a55';
                 const hearts = '❤️ '.repeat(Math.max(0, this.lives));
-                ctx.fillText(`VITE RIMASTE : ${hearts} (${this.lives}/3)`, 80, 360);
+                ctx.fillText(`VITE RIMASTE : ${hearts} (${this.lives}/3)`, 80, 350);
 
                 const activeBricks = this.bricksGroup ? this.bricksGroup.children.length : 0;
                 ctx.fillStyle = '#00f0ff';
-                ctx.fillText(`MATTONI RIMS : ${activeBricks} / 55`, 80, 410);
-                ctx.fillText(`VEL. PALLA   : ${this.ballSpeed.toFixed(1)} m/s`, 80, 460);
+                ctx.fillText(`MATTONI RIMS : ${activeBricks}`, 80, 400);
 
-                // Control Mode Display
                 ctx.fillStyle = '#ff00d4';
-                ctx.font = 'bold 28px monospace';
                 const modeText = this.controlMode === 'RAY' ? 'RAGGIO (1:1 Intersezione)' : 'INCLINAZIONE (Tilt Polso)';
-                ctx.fillText(`MODO PAD     : ${modeText}`, 80, 510);
+                ctx.fillText(`MODO PAD     : ${modeText}`, 80, 450);
 
-                // Laser Ray Status
-                const lasersActive = (this.gameState !== 'PLAYING') || this.showLasersInGame;
-                ctx.fillStyle = lasersActive ? '#00ff88' : '#f59e0b';
-                ctx.fillText(`RAGGI LASER  : ${lasersActive ? 'VISIBILI' : 'SPENTI (Premi B)'}`, 80, 560);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillText(`CONTROLLER   : MANO ${this.activeHand}`, 80, 500);
 
-                // Sensitivity Status Display
                 if (this.controlMode === 'TILT') {
                     ctx.fillStyle = '#00f0ff';
-                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (ATTIVA)`, 80, 610);
+                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (ATTIVA)`, 80, 550);
                 } else {
                     ctx.fillStyle = '#64748b';
-                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (Inattiva in Raggio)`, 80, 610);
+                    ctx.fillText(`SENSIBILITÀ  : ${this.paddleSensitivity.toFixed(1)}x (Inattiva in Raggio)`, 80, 550);
                 }
 
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Premi Tasto B sul Controller Touch Destro per ON/OFF Raggi Laser', w / 2, 730);
-                ctx.fillText('Con 0 vite la partita termina e si torna in Lobby', w / 2, 760);
-                ctx.fillText('Sincronizzazione Quota Y=0 (local-floor) Attiva', w / 2, 960);
+                ctx.fillText('Premi Tasto B sul Controller Touch per ON/OFF Raggi Laser', w / 2, 1140);
+                ctx.fillText('💡 TRASCINA QUESTO HUD TENENDO PREMUTO IL TASTO GRIP', w / 2, 1180);
+                ctx.fillText('Sincronizzazione Quota Y=0 (local-floor) Attiva', w / 2, 1220);
 
                 this.hudTexture.needsUpdate = true;
             }
@@ -731,6 +740,8 @@
                 for (let i = 0; i < 2; i++) {
                     const controller = this.renderer.xr.getController(i);
                     controller.addEventListener('selectstart', (e) => this.onXRSelectStart(e));
+                    controller.addEventListener('squeezestart', (e) => this.onXRSqueezeStart(e));
+                    controller.addEventListener('squeezeend', (e) => this.onXRSqueezeEnd(e));
 
                     // Laser pointer line
                     const laserGeo = new THREE.BufferGeometry().setFromPoints([
@@ -761,7 +772,7 @@
                 const btnAR = document.getElementById('btn-ar');
 
                 if (!navigator.xr) {
-                    showToast('WebXR non rilevato. Usa Meta Quest Browser.', 'fa-triangle-exclamation');
+                    showToast('WebXR non rilevato. Usa un visore VR/AR compatibile.', 'fa-triangle-exclamation');
                     return;
                 }
 
@@ -807,7 +818,7 @@
                         this.renderHUDCanvas();
                     });
 
-                    showToast(`Sessione ${mode.toUpperCase()} avviata su Quest 3!`, 'fa-circle-check');
+                    showToast(`Sessione ${mode.toUpperCase()} avviata!`, 'fa-circle-check');
                 } catch (err) {
                     console.error('Errore avvio WebXR:', err);
                     showToast(`Impossibile avviare sessione ${mode.toUpperCase()}`, 'fa-triangle-exclamation');
@@ -840,21 +851,87 @@
                 }
             }
 
+            onXRSqueezeStart(event) {
+                const controller = event.target;
+                this.tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+                this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
+
+                const intersects = this.raycaster.intersectObject(this.hudMesh, true);
+                if (intersects.length > 0) {
+                    this.isDraggingHUD = true;
+                    this.hudDragController = controller;
+
+                    const ctrlPos = new THREE.Vector3();
+                    const ctrlQuat = new THREE.Quaternion();
+                    controller.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
+
+                    this.hudDragOffset.copy(this.hudGroup.position).sub(ctrlPos);
+                    this.hudDragQuatOffset.copy(ctrlQuat).invert().multiply(this.hudGroup.quaternion);
+
+                    showToast('Trascinamento HUD attivo', 'fa-hand-rock');
+                }
+            }
+
+            onXRSqueezeEnd(event) {
+                if (this.isDraggingHUD && event.target === this.hudDragController) {
+                    this.isDraggingHUD = false;
+                    this.hudDragController = null;
+                    showToast('HUD riposizionato', 'fa-location-dot');
+                }
+            }
+
             toggleLaserRays() {
                 this.showLasersInGame = !this.showLasersInGame;
                 this.renderHUDCanvas();
                 showToast(`Raggi Laser in gioco: ${this.showLasersInGame ? 'ATTIVI' : 'SPENTI'}`, 'fa-bolt');
             }
 
+            updateButtonLabels() {
+                if (this.btnToggleMode) {
+                    const labelMesh = this.btnToggleMode.children[0];
+                    if (labelMesh) {
+                        const c = labelMesh.material.map.image;
+                        const cCtx = c.getContext('2d');
+                        cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
+                        cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
+                        cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif'; cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
+                        cCtx.fillText(this.controlMode === 'RAY' ? 'MODO: RAGGIO' : 'MODO: INCLINAZIONE', c.width / 2, c.height / 2);
+                        labelMesh.material.map.needsUpdate = true;
+                    }
+                }
+
+                if (this.btnToggleHand) {
+                    const labelMesh = this.btnToggleHand.children[0];
+                    if (labelMesh) {
+                        const c = labelMesh.material.map.image;
+                        const cCtx = c.getContext('2d');
+                        cCtx.fillStyle = '#0f172a'; cCtx.fillRect(0, 0, c.width, c.height);
+                        cCtx.strokeStyle = '#00f0ff'; cCtx.lineWidth = 6; cCtx.strokeRect(4, 4, c.width-8, c.height-8);
+                        cCtx.fillStyle = '#ffffff'; cCtx.font = 'bold 36px sans-serif'; cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
+                        cCtx.fillText(`MANO: ${this.activeHand}`, c.width / 2, c.height / 2);
+                        labelMesh.material.map.needsUpdate = true;
+                    }
+                }
+            }
+
             handleAction(action) {
                 if (action === 'START_GAME') {
                     this.startGame();
+                } else if (action === 'EXIT_GAME') {
+                    this.returnToLobby();
+                    showToast('Ritorno alla Lobby', 'fa-house');
                 } else if (action === 'TOGGLE_MODE') {
                     this.controlMode = this.controlMode === 'RAY' ? 'TILT' : 'RAY';
+                    this.updateButtonLabels();
                     this.renderHUDCanvas();
                     showToast(`Modalità Controller: ${this.controlMode === 'RAY' ? 'RAGGIO 1:1' : 'INCLINAZIONE TILT'}`, 'fa-sliders');
-                } else if (action === 'TOGGLE_LASER') {
-                    this.toggleLaserRays();
+                } else if (action === 'TOGGLE_HAND') {
+                    this.activeHand = this.activeHand === 'RIGHT' ? 'LEFT' : 'RIGHT';
+                    this.updateButtonLabels();
+                    this.renderHUDCanvas();
+                    showToast(`Mano Attiva: ${this.activeHand === 'RIGHT' ? 'DESTRO' : 'SINISTRO'}`, 'fa-hand');
                 } else if (action === 'SENS_DOWN') {
                     this.paddleSensitivity = Math.max(1.0, this.paddleSensitivity - 0.5);
                     this.renderHUDCanvas();
@@ -868,15 +945,38 @@
 
             startGame() {
                 this.gameState = 'PLAYING';
+                this.level = 1;
                 this.score = 0;
-                this.lives = 3; // Always start with 3 lives
-                this.showLasersInGame = false; // Lasers hidden during gameplay by default
+                this.lives = 3;
+                this.speedMultiplier = 1.0;
+                this.totalBricksHitInLife = 0;
+                this.showLasersInGame = false;
                 this.lobbyGroup.visible = false;
-                this.buildBricks();
+
+                this.buildBricksForLevel(this.level);
                 this.resetBallAndPaddle();
                 this.launchBall();
                 this.renderHUDCanvas();
-                showToast('Partita avviata! Premi B per ON/OFF raggi laser.', 'fa-gamepad');
+                showToast(`Livello ${this.level} Avviato! Buona fortuna!`, 'fa-gamepad');
+            }
+
+            advanceLevel() {
+                this.level++;
+                if (this.level > 3) {
+                    this.gameState = 'VICTORY';
+                    audio.gameWin();
+                    showToast('VITTORIA FINALE! Hai completato tutti i 3 livelli!', 'fa-trophy');
+                    this.returnToLobby();
+                } else {
+                    audio.levelUp();
+                    showToast(`LIVELLO ${this.level - 1} COMPLETATO! Avvio Livello ${this.level}...`, 'fa-circle-check');
+                    this.speedMultiplier = 1.0;
+                    this.totalBricksHitInLife = 0;
+                    this.buildBricksForLevel(this.level);
+                    this.resetBallAndPaddle();
+                    this.launchBall();
+                    this.renderHUDCanvas();
+                }
             }
 
             returnToLobby() {
@@ -907,17 +1007,20 @@
                     audio.wallHit();
                 }
 
-                // Ceiling bounce
+                // Ceiling bounce (2.70m topY = 3.00m)
                 if (this.ballMesh.position.y + ballR >= FIELD.topY) {
                     this.ballMesh.position.y = FIELD.topY - ballR;
                     this.ballVel.y = -Math.abs(this.ballVel.y);
                     audio.wallHit();
                 }
 
-                // Bottom loss condition (VITE SYSTEM)
+                // Bottom loss condition
                 if (this.ballMesh.position.y - ballR <= FIELD.bottomY) {
                     this.lives--;
                     audio.lifeLost();
+
+                    this.speedMultiplier = 1.0;
+                    this.totalBricksHitInLife = 0;
 
                     if (this.lives <= 0) {
                         this.gameState = 'GAMEOVER';
@@ -925,7 +1028,7 @@
                         showToast('GAME OVER! Vite esaurite. Ritorno in Lobby...', 'fa-skull');
                         this.returnToLobby();
                     } else {
-                        showToast(`Palla persa! Vite rimaste: ${this.lives}`, 'fa-heart-crack');
+                        showToast(`Palla persa! Velocità resettata. Vite rimaste: ${this.lives}`, 'fa-heart-crack');
                         this.resetBallAndPaddle();
                         this.launchBall();
                     }
@@ -940,8 +1043,10 @@
                 if (padBox.intersectsBox(ballBox) && this.ballVel.y < 0) {
                     this.ballVel.y = Math.abs(this.ballVel.y);
                     const hitOffset = (this.ballMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
-                    this.ballVel.x = hitOffset * (this.ballSpeed * 0.85);
-                    this.ballVel.normalize().multiplyScalar(this.ballSpeed);
+
+                    const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
+                    this.ballVel.x = hitOffset * (currentSpeed * 0.85);
+                    this.ballVel.normalize().multiplyScalar(currentSpeed);
                     audio.paddleHit();
                 }
 
@@ -955,7 +1060,7 @@
                     if (brickBox.intersectsBox(ballBox)) {
                         b.visible = false;
 
-                        // Zero-GC Object Pooled Particle Explosion at exact brick coordinates
+                        // Zero-GC Particle Explosion
                         this.particlePool.explode(b.position, b.userData.colorHex);
 
                         this.bricksGroup.remove(b);
@@ -964,17 +1069,25 @@
 
                         this.ballVel.y = -this.ballVel.y;
                         this.score += b.userData.points;
-
                         audio.brickHit(b.userData.row);
 
-                        if (this.bricksGroup.children.length === 0) {
-                            this.gameState = 'VICTORY';
-                            audio.gameWin();
-                            showToast('VITTORIA! Hai distrutto tutti i mattoni!', 'fa-trophy');
-                            this.returnToLobby();
+                        // Dynamic Ball Speed Increase: Every 7 bricks hit
+                        this.totalBricksHitInLife++;
+                        if (this.totalBricksHitInLife % 7 === 0) {
+                            this.speedMultiplier *= 1.08; // 8% speed boost
+                            const newSpeed = this.baseBallSpeed * this.speedMultiplier;
+                            this.ballVel.normalize().multiplyScalar(newSpeed);
+                            audio.speedBoost();
+                            showToast(`⚡ ACCELERAZIONE! Velocità palla: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
                         }
 
-                        this.renderHUDCanvas();
+                        // Check Level Completion
+                        if (this.bricksGroup.children.length === 0) {
+                            this.advanceLevel();
+                        } else {
+                            this.renderHUDCanvas();
+                        }
+
                         break;
                     }
                 }
@@ -987,12 +1100,11 @@
                 if (this.renderer.xr.isPresenting) {
                     const session = this.renderer.xr.getSession();
 
-                    // Check Button B press on Quest 3 Right Touch Controller
+                    // Check Button B press on Touch Controller
                     if (session) {
                         for (const inputSource of session.inputSources) {
                             if (inputSource.gamepad && inputSource.handedness === 'right') {
                                 const gamepad = inputSource.gamepad;
-                                // Button index 5 or 1 represents 'B' button on Meta Touch Controller
                                 const btnB = gamepad.buttons[5] || gamepad.buttons[1];
                                 if (btnB) {
                                     const isPressed = btnB.pressed;
@@ -1006,14 +1118,37 @@
                         }
                     }
 
-                    // Drive paddle using selected Quest Control Mode
-                    const rightController = this.controllers[1] || this.controllers[0];
+                    // Update HUD position if dragging
+                    if (this.isDraggingHUD && this.hudDragController) {
+                        const ctrlPos = new THREE.Vector3();
+                        const ctrlQuat = new THREE.Quaternion();
+                        this.hudDragController.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
 
-                    if (rightController) {
+                        this.hudGroup.position.copy(ctrlPos).add(this.hudDragOffset);
+                        this.hudGroup.quaternion.copy(ctrlQuat).multiply(this.hudDragQuatOffset);
+                    }
+
+                    // Select active controller based on chosen Handedness ('RIGHT' or 'LEFT')
+                    let activeController = null;
+                    if (session && session.inputSources) {
+                        const targetHandStr = this.activeHand.toLowerCase();
+                        for (let i = 0; i < session.inputSources.length; i++) {
+                            const src = session.inputSources[i];
+                            if (src.handedness === targetHandStr) {
+                                activeController = this.controllers[i] || this.controllers[0];
+                                break;
+                            }
+                        }
+                    }
+                    if (!activeController) {
+                        activeController = (this.activeHand === 'RIGHT') ? (this.controllers[1] || this.controllers[0]) : (this.controllers[0] || this.controllers[1]);
+                    }
+
+                    if (activeController) {
                         if (this.controlMode === 'RAY') {
-                            // MODE 1: RAY INTERSECTION (Point-and-Move 1:1)
-                            this.tempMatrix.identity().extractRotation(rightController.matrixWorld);
-                            this.rayOrigin.setFromMatrixPosition(rightController.matrixWorld);
+                            // MODE 1: RAY INTERSECTION
+                            this.tempMatrix.identity().extractRotation(activeController.matrixWorld);
+                            this.rayOrigin.setFromMatrixPosition(activeController.matrixWorld);
                             this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
                             const ray = new THREE.Ray(this.rayOrigin, this.rayDir);
@@ -1021,8 +1156,8 @@
                                 this.paddleX = this.targetPoint.x;
                             }
                         } else if (this.controlMode === 'TILT') {
-                            // MODE 2: CONTROLLER TILT / ROTATION (Roll angle multiplied by sensitivity)
-                            const euler = new THREE.Euler().setFromQuaternion(rightController.quaternion, 'ZYX');
+                            // MODE 2: CONTROLLER TILT / ROTATION
+                            const euler = new THREE.Euler().setFromQuaternion(activeController.quaternion, 'ZYX');
                             const rollAngle = euler.z;
                             this.paddleX = -rollAngle * (FIELD.width / 1.2) * this.paddleSensitivity;
                         }
@@ -1030,7 +1165,6 @@
                 }
 
                 // Laser Ray Visibility Management
-                // Visible in Lobby / GameOver OR if explicitly toggled ON during PLAYING state
                 const lasersVisible = (this.gameState !== 'PLAYING') || this.showLasersInGame;
                 this.controllers.forEach((ctrl) => {
                     const line = ctrl.getObjectByName('laserLine');
@@ -1044,28 +1178,32 @@
             }
 
             render(timestamp, frame) {
-                const now = performance.now();
-                const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
-                this.lastFrameTime = now;
-
-                // FPS Counter for Quest 3 90Hz Tracking
-                this.frameCount++;
-                if (now - this.lastFpsCheck >= 1000) {
-                    this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsCheck));
-                    this.frameCount = 0;
-                    this.lastFpsCheck = now;
-                    this.renderHUDCanvas();
-                }
+                const dt = 0.016;
 
                 this.updatePaddleAndControllers();
                 this.updatePhysics(dt);
 
+                // Oscillating Brick Matrix Animation
+                if (this.bricksGroup && this.bricksGroup.children.length > 0) {
+                    const animTime = performance.now() * 0.002;
+                    for (let i = 0; i < this.bricksGroup.children.length; i++) {
+                        const b = this.bricksGroup.children[i];
+                        if (b.visible && b.userData) {
+                            const r = b.userData.row || 0;
+                            const c = b.userData.col || 0;
+                            // Subtle oscillating rotation on Y and Z axes
+                            b.rotation.z = Math.sin(animTime + r * 0.5 + c * 0.3) * 0.06;
+                            b.rotation.y = Math.cos(animTime * 0.8 + c * 0.4) * 0.05;
+                        }
+                    }
+                }
+
                 // Update particle pool
                 this.particlePool.update(dt);
 
-                // Pulse light intensity
+                // Pulse ball light
                 if (this.ballLight) {
-                    this.ballLight.intensity = 1.2 + Math.sin(now * 0.01) * 0.4;
+                    this.ballLight.intensity = 1.2 + Math.sin(performance.now() * 0.01) * 0.4;
                 }
 
                 this.renderer.render(this.scene, this.camera);
@@ -1074,7 +1212,7 @@
 
         // --- APPLICATION ENTRY POINT ---
         window.onload = () => {
-            window.app = new ArkanoidXRApp();
+            window.app = new ARkaniumXRApp();
         };
     </script>
 </body>
