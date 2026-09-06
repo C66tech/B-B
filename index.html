@@ -2,20 +2,22 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebXR 3D Arkanoid - v1.1.0</title>
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR 3D Arkanoid - v1.2.0</title>
+
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js r128 -->
+    <!-- Three.js r128 CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- FontAwesome icons -->
+    <!-- FontAwesome Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #0b0f19;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #080c14;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             user-select: none;
         }
         #webgl-container {
@@ -24,10 +26,26 @@
             display: block;
         }
         .glass-panel {
-            background: rgba(15, 23, 42, 0.75);
+            background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+        .xr-glow-btn {
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+            transition: all 0.2s ease-in-out;
+        }
+        .xr-glow-btn:hover {
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.7);
+            transform: translateY(-2px);
+        }
+        .xr-ar-btn {
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
+            transition: all 0.2s ease-in-out;
+        }
+        .xr-ar-btn:hover {
+            box-shadow: 0 0 30px rgba(236, 72, 153, 0.7);
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -36,733 +54,619 @@
     <!-- WebGL Canvas Container -->
     <div id="webgl-container"></div>
 
-    <!-- Desktop / Mobile Overlay UI -->
+    <!-- Notification Toast Message Container -->
+    <div id="toast-container" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
+        <div id="toast-body" class="bg-slate-900/90 border border-cyan-500/50 text-cyan-300 px-6 py-3 rounded-2xl shadow-2xl font-semibold text-sm flex items-center space-x-3">
+            <i id="toast-icon" class="fa-solid fa-circle-info text-cyan-400"></i>
+            <span id="toast-message">Messaggio di sistema</span>
+        </div>
+    </div>
+
+    <!-- 2D Screen UI Overlay -->
     <div id="overlay-ui" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
-        <!-- Top Header Bar -->
-        <div class="flex justify-between items-center w-full">
-            <div class="glass-panel px-4 py-2 rounded-xl flex items-center space-x-3 pointer-events-auto">
-                <i class="fa-solid fa-cubes text-cyan-400 text-xl"></i>
+        <!-- Header Banner -->
+        <div class="flex flex-wrap justify-between items-start gap-4">
+            <div class="glass-panel px-5 py-3 rounded-2xl flex items-center space-x-4 pointer-events-auto">
+                <i class="fa-solid fa-shapes text-cyan-400 text-2xl"></i>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight tracking-wider bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
-                        ARKANOID 3D XR
-                    </h1>
-                    <p class="text-xs text-gray-400">Versione <span class="text-cyan-300 font-mono">v1.1.0</span></p>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="font-black text-xl tracking-wider bg-gradient-to-r from-cyan-400 via-indigo-300 to-pink-400 bg-clip-text text-transparent">
+                            ARKANOID 3D XR
+                        </h1>
+                        <span class="bg-cyan-950 text-cyan-300 text-xs px-2 py-0.5 rounded-full font-mono border border-cyan-500/40">
+                            v1.2.0
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300">Ottimizzato per Meta Quest 3 (AR Passthrough &amp; VR) e Desktop</p>
                 </div>
             </div>
 
-            <!-- WebXR Session Buttons -->
-            <div class="flex space-x-3 pointer-events-auto">
-                <button id="btn-ar" class="glass-panel hover:bg-cyan-600/30 text-cyan-300 hover:text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 border border-cyan-500/30">
-                    <i class="fa-solid fa-vr-cardboard text-lg"></i>
+            <!-- WebXR Launch Buttons -->
+            <div class="flex flex-wrap gap-3 pointer-events-auto">
+                <button id="btn-start-game-2d" class="glass-panel bg-emerald-600/80 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center space-x-2 border border-emerald-400/50 shadow-lg shadow-emerald-950/40">
+                    <i class="fa-solid fa-play"></i>
+                    <span>AVVIA GIOCO</span>
+                </button>
+                <button id="btn-ar" class="xr-ar-btn bg-gradient-to-r from-pink-600 to-fuchsia-600 hover:from-pink-500 hover:to-fuchsia-500 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center space-x-2 border border-pink-300/40">
+                    <i class="fa-solid fa-glasses"></i>
                     <span>ENTRA IN AR</span>
                 </button>
-                <button id="btn-vr" class="glass-panel bg-indigo-600/40 hover:bg-indigo-600/70 text-indigo-200 hover:text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 border border-indigo-500/40 shadow-lg shadow-indigo-900/30">
-                    <i class="fa-solid fa-headset text-lg"></i>
+                <button id="btn-vr" class="xr-glow-btn bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center space-x-2 border border-cyan-300/40">
+                    <i class="fa-solid fa-headset"></i>
                     <span>ENTRA IN VR</span>
                 </button>
             </div>
         </div>
 
-        <!-- Non-XR Desktop Hint -->
-        <div id="desktop-controls-hint" class="glass-panel p-4 rounded-xl max-w-sm pointer-events-auto mb-4 self-start border-l-4 border-l-cyan-400">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-1">Modalità Anteprima Desktop</h3>
-            <p class="text-xs text-gray-300 leading-relaxed">
-                Usa il <b>Mouse</b> per ruotare la visuale. Muovi il cursore orizzontalmente per guidare il Pad durante il gioco.
-                I pulsanti 3D sono interattivi tramite click.
-            </p>
+        <!-- Controls Legend -->
+        <div class="glass-panel p-4 rounded-2xl max-w-sm pointer-events-auto self-start border-l-4 border-l-cyan-400 text-xs text-slate-300">
+            <h3 class="font-bold text-cyan-400 mb-1 flex items-center space-x-1.5">
+                <i class="fa-solid fa-gamepad"></i>
+                <span>CONTROLLI &amp; WEBXR:</span>
+            </h3>
+            <ul class="space-y-1 text-slate-300 list-disc list-inside">
+                <li><strong class="text-white">Quest 3 VR/AR:</strong> Controller Dx sposta il Pad. Punti il raggio laser e premi il Grilletto per cliccare.</li>
+                <li><strong class="text-white">Desktop:</strong> Muovi il mouse per spostare il Pad. Click SX per cliccare i pulsanti.</li>
+                <li><strong class="text-white">Quota $Y=0$:</strong> Allineata al pavimento fisico (Guardian local-floor).</li>
+            </ul>
         </div>
     </div>
 
-    <!-- Game Engine Logic -->
     <script>
-        // --- CONSTANTS & CONFIGURATION ---
-        const VERSION = "v1.1.0";
-        
-        // Field Dimensions (meters)
-        const FIELD = {
-            width: 2.0,
-            height: 3.0,
-            depth: 0.3,
-            bottomY: 0.5, // 50 cm off floor
-            get centerY() { return this.bottomY + (this.height / 2); },
-            get topY() { return this.bottomY + this.height; },
-            zPos: -1.8 // Field Z offset from origin
-        };
+        // --- GAME VERSION CONSTANT ---
+        const VERSION = "v1.2.0";
 
-        // Brick Grid Specs
-        const BRICKS_COLS = 11;
-        const BRICKS_ROWS = 5;
-        const BRICK_DEPTH = 0.12;
+        // Toast Notification System (Replacement for forbidden alert)
+        function showToast(message, iconClass = "fa-circle-info") {
+            const container = document.getElementById('toast-container');
+            const bodyMessage = document.getElementById('toast-message');
+            const icon = document.getElementById('toast-icon');
 
-        // Colors per brick row
-        const ROW_COLORS = [
-            0xff3366, // Red/Pink
-            0xff9900, // Orange
-            0xffcc00, // Yellow
-            0x33cc66, // Green
-            0x3399ff  // Cyan/Blue
-        ];
+            if (!container || !bodyMessage) return;
 
-        // --- AUDIO SYNTHESIZER (Web Audio API) ---
-        class RetroSoundEngine {
+            bodyMessage.textContent = message;
+            icon.className = `fa-solid ${iconClass} text-cyan-400`;
+
+            container.classList.remove('opacity-0', '-translate-y-4');
+            container.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                container.classList.remove('opacity-100', 'translate-y-0');
+                container.classList.add('opacity-0', '-translate-y-4');
+            }, 3500);
+        }
+
+        // --- RETRO SYNTHESIZER AUDIO ENGINE ---
+        class RetroAudioEngine {
             constructor() {
                 this.ctx = null;
+                this.muted = false;
             }
 
             init() {
                 if (!this.ctx) {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                    this.ctx = new AudioCtx();
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
                 }
             }
 
-            playTone(freq, type = 'square', duration = 0.1, gainVal = 0.15) {
-                if (!this.ctx) return;
+            playTone(freq, type = 'square', duration = 0.08, volume = 0.15) {
+                if (this.muted || !this.ctx) return;
                 try {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = type;
                     osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
                     osc.connect(gain);
                     gain.connect(this.ctx.destination);
                     osc.start();
                     osc.stop(this.ctx.currentTime + duration);
-                } catch (e) { console.error(e); }
+                } catch (e) { console.warn('Audio Exception:', e); }
             }
 
-            paddleHit() {
-                this.playTone(320, 'square', 0.08, 0.2);
-            }
-
-            wallHit() {
-                this.playTone(220, 'triangle', 0.06, 0.15);
-            }
-
-            brickHit(pitchOffset = 0) {
-                this.playTone(440 + (pitchOffset * 40), 'square', 0.1, 0.25);
-            }
-
-            scoreUp() {
-                if (!this.ctx) return;
-                this.playTone(587.33, 'sine', 0.08, 0.2); // D5
-                setTimeout(() => this.playTone(880, 'sine', 0.15, 0.2), 80); // A5
-            }
-
-            gameOver() {
-                if (!this.ctx) return;
-                const notes = [300, 260, 220, 180];
-                notes.forEach((freq, idx) => {
-                    setTimeout(() => this.playTone(freq, 'sawtooth', 0.2, 0.25), idx * 150);
+            paddleHit() { this.playTone(320, 'triangle', 0.09, 0.2); }
+            wallHit() { this.playTone(200, 'sine', 0.06, 0.12); }
+            brickHit(row = 0) { this.playTone(380 + (row * 60), 'square', 0.08, 0.22); }
+            uiClick() { this.playTone(750, 'sine', 0.05, 0.15); }
+            lifeLost() { this.playTone(140, 'sawtooth', 0.35, 0.25); }
+            gameWin() {
+                [523, 659, 783, 1046].forEach((f, idx) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.15, 0.2), idx * 120);
                 });
             }
         }
 
-        const audio = new RetroSoundEngine();
+        const audio = new RetroAudioEngine();
 
-        // --- MAIN GAME APPLICATION ---
+        // --- SPATIAL FIELD CONFIGURATION ---
+        const FIELD = {
+            width: 2.0,       // 2.0 meters wide
+            height: 3.0,      // 3.0 meters high
+            depth: 0.30,      // 30 cm depth channel
+            bottomY: 0.50,    // Base elevated 50 cm off physical floor
+            get centerY() { return this.bottomY + (this.height / 2); },
+            get topY() { return this.bottomY + this.height; },
+            zPos: -1.80       // Field placed 1.8 meters in front of player
+        };
+
+        const BRICKS_COLS = 11;
+        const BRICKS_ROWS = 5;
+        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88];
+
         class ArkanoidXRApp {
             constructor() {
                 this.container = document.getElementById('webgl-container');
-                
-                // Game States: 'LOBBY', 'PLAYING', 'GAMEOVER', 'PAUSED'
-                this.gameState = 'LOBBY';
+
+                // Game State variables
+                this.gameState = 'LOBBY'; // 'LOBBY', 'PLAYING', 'GAMEOVER', 'VICTORY'
                 this.score = 0;
                 this.lives = 3;
-                this.bricksRemaining = 0;
+                this.ballSpeed = 2.2; // m/s
+                this.paddleWidth = 0.40;
+                this.paddleX = 0;
+
+                // Telemetry
                 this.fps = 60;
                 this.frameCount = 0;
-                this.lastTime = performance.now();
+                this.lastFpsCheck = performance.now();
+                this.lastFrameTime = performance.now();
 
-                // Ball Physics
-                this.ballSpeedMultiplier = 1.0;
-                this.baseBallSpeed = 1.8; // m/s
-                this.ballVelocity = new THREE.Vector3(0, 0, 0);
-
-                // Controller tracking
-                this.rightController = null;
-                this.rightControllerGrip = null;
-                this.raycaster = new THREE.Raycaster();
-                this.tempMatrix = new THREE.Matrix4();
-
-                // Mouse fallback
-                this.mousePosition = new THREE.Vector2();
-
-                // Interactive 3D Objects
+                // Interactive array for raycasting
                 this.interactiveObjects = [];
 
-                this.initScene();
-                this.initLights();
-                this.initFieldGeometry();
-                this.initPaddleAndBall();
-                this.initLobbyPanel(); // Moved forward in front of field!
-                this.initDebugHUD();
-                this.initWebXR();
-                this.initEventListeners();
+                // Raycasting & Input
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                this.tempMatrix = new THREE.Matrix4();
 
-                // Start Render Loop
-                this.renderer.setAnimationLoop((t, frame) => this.render(t, frame));
+                this.initScene();
+                this.initLighting();
+                this.initField();
+                this.initPaddleAndBall();
+                this.initLobbyPanel(); // Positioned in front at Z = -1.1m
+                this.initDebugHUD();  // Positioned on Left side
+                this.initXRControllers();
+                this.initWebXRButtons();
+                this.initDesktopEvents();
+
+                // Start animation loop
+                this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
             }
 
             initScene() {
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x0a0d14);
+                this.scene.background = new THREE.Color(0x080c14);
 
-                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50);
-                // Default position for desktop view looking towards field
-                this.camera.position.set(0, 1.6, 1.2);
+                this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 50);
+                this.camera.position.set(0, 1.6, 0.8); // Standard eye level viewing position
 
-                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "highPerformance" });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                this.renderer.shadowMap.enabled = true;
-                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 this.renderer.xr.enabled = true;
-                
+
+                // Mandate local-floor reference space
+                this.renderer.xr.setReferenceSpaceType('local-floor');
                 this.container.appendChild(this.renderer.domElement);
+
+                // Floor grid for VR / Desktop
+                this.floorGrid = new THREE.GridHelper(20, 40, 0x00f0ff, 0x1e293b);
+                this.floorGrid.position.set(0, 0, -2);
+                this.scene.add(this.floorGrid);
             }
 
-            initLights() {
-                // Ambient Light
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-                this.scene.add(ambientLight);
+            initLighting() {
+                const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+                this.scene.add(ambient);
 
-                // Main Directional Light (Shadow Caster)
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-                dirLight.position.set(2, 4, 1);
-                dirLight.castShadow = true;
-                dirLight.shadow.mapSize.width = 2048;
-                dirLight.shadow.mapSize.height = 2048;
-                dirLight.shadow.camera.near = 0.5;
-                dirLight.shadow.camera.far = 10;
-                dirLight.shadow.camera.left = -2;
-                dirLight.shadow.camera.right = 2;
-                dirLight.shadow.camera.top = 4;
-                dirLight.shadow.camera.bottom = 0;
+                const dirLight = new THREE.DirectionalLight(0x00f0ff, 1.2);
+                dirLight.position.set(2, 4, 2);
                 this.scene.add(dirLight);
 
-                // Neon Field Point Lights
-                const blueGlow = new THREE.PointLight(0x00f0ff, 1.2, 5);
-                blueGlow.position.set(-FIELD.width / 2 - 0.2, FIELD.centerY, FIELD.zPos + 0.2);
-                this.scene.add(blueGlow);
-
-                const magentaGlow = new THREE.PointLight(0xff00a0, 1.2, 5);
-                magentaGlow.position.set(FIELD.width / 2 + 0.2, FIELD.centerY, FIELD.zPos + 0.2);
-                this.scene.add(magentaGlow);
+                const pointLight = new THREE.PointLight(0xff00d4, 1.5, 8);
+                pointLight.position.set(0, 2.0, -2.5);
+                this.scene.add(pointLight);
             }
 
-            initFieldGeometry() {
+            initField() {
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
 
-                // Frame Parameters
-                const frameMat = new THREE.MeshStandardMaterial({
-                    color: 0x1e293b,
-                    metalness: 0.8,
-                    roughness: 0.2
-                });
+                // Playfield frame wireframe box
+                const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
+                const edges = new THREE.EdgesGeometry(frameGeo);
+                const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, linewidth: 2 });
+                const frameMesh = new THREE.LineSegments(edges, lineMat);
+                frameMesh.position.set(0, FIELD.centerY, 0);
+                this.fieldGroup.add(frameMesh);
 
-                const borderGlowMat = new THREE.MeshBasicMaterial({ color: 0x00d8ff });
-
-                // Outer Frame Borders (Left, Right, Top)
-                const wallThick = 0.08;
-                
-                // Left Wall
-                const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, FIELD.height, FIELD.depth), frameMat);
-                leftWall.position.set(-FIELD.width / 2 - wallThick / 2, FIELD.centerY, 0);
-                leftWall.castShadow = true;
-                leftWall.receiveShadow = true;
-                this.fieldGroup.add(leftWall);
-
-                // Right Wall
-                const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, FIELD.height, FIELD.depth), frameMat);
-                rightWall.position.set(FIELD.width / 2 + wallThick / 2, FIELD.centerY, 0);
-                rightWall.castShadow = true;
-                rightWall.receiveShadow = true;
-                this.fieldGroup.add(rightWall);
-
-                // Top Wall
-                const topWall = new THREE.Mesh(new THREE.BoxGeometry(FIELD.width + (wallThick * 2), wallThick, FIELD.depth), frameMat);
-                topWall.position.set(0, FIELD.topY + wallThick / 2, 0);
-                topWall.castShadow = true;
-                topWall.receiveShadow = true;
-                this.fieldGroup.add(topWall);
-
-                // Back Wall (Translucent Grid Panel)
+                // Translucent back glass pane
                 const backGeo = new THREE.PlaneGeometry(FIELD.width, FIELD.height);
                 const backMat = new THREE.MeshStandardMaterial({
-                    color: 0x0b132b,
-                    roughness: 0.5,
-                    metalness: 0.1,
+                    color: 0x080c1e,
+                    roughness: 0.2,
+                    metalness: 0.8,
                     transparent: true,
-                    opacity: 0.85
+                    opacity: 0.65
                 });
-                const backMesh = new THREE.Mesh(backGeo, backMat);
-                backMesh.position.set(0, FIELD.centerY, -FIELD.depth / 2);
-                backMesh.receiveShadow = true;
-                this.fieldGroup.add(backMesh);
+                const backPlane = new THREE.Mesh(backGeo, backMat);
+                backPlane.position.set(0, FIELD.centerY, -FIELD.depth / 2);
+                this.fieldGroup.add(backPlane);
 
-                // Decorative Back Grid Lines
-                const gridHelper = new THREE.GridHelper(FIELD.height, 15, 0x00f0ff, 0x1e293b);
-                gridHelper.rotation.x = Math.PI / 2;
-                gridHelper.position.set(0, FIELD.centerY, -FIELD.depth / 2 + 0.01);
-                this.fieldGroup.add(gridHelper);
+                // Base Hazard Red Bar
+                const hazardGeo = new THREE.BoxGeometry(FIELD.width, 0.03, FIELD.depth);
+                const hazardMat = new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xff0044, emissiveIntensity: 0.7 });
+                const hazardBar = new THREE.Mesh(hazardGeo, hazardMat);
+                hazardBar.position.set(0, FIELD.bottomY, 0);
+                this.fieldGroup.add(hazardBar);
 
-                // Bottom Rail Graphic Indicator
-                const railGeo = new THREE.CylinderGeometry(0.015, 0.015, FIELD.width);
-                const railMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.1 });
-                const railMesh = new THREE.Mesh(railGeo, railMat);
-                railMesh.rotation.z = Math.PI / 2;
-                railMesh.position.set(0, FIELD.bottomY + 0.1, 0);
-                this.fieldGroup.add(railMesh);
-
-                this.scene.add(this.fieldGroup);
-
-                // Group for Dynamic Bricks
+                // Bricks container group
                 this.bricksGroup = new THREE.Group();
                 this.fieldGroup.add(this.bricksGroup);
+
+                this.scene.add(this.fieldGroup);
             }
 
-            buildBrickMatrix() {
+            buildBricks() {
                 // Clear existing
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children.pop();
                     b.geometry.dispose();
-                    if (Array.isArray(b.material)) b.material.forEach(m => m.dispose());
-                    else b.material.dispose();
+                    b.material.dispose();
                 }
 
-                const gap = 0.015;
-                const totalGapsX = (BRICKS_COLS - 1) * gap;
-                const brickWidth = (FIELD.width - 0.1 - totalGapsX) / BRICKS_COLS;
-                const brickHeight = 0.12;
+                const margin = 0.08;
+                const totalW = FIELD.width - margin;
+                const brickW = totalW / BRICKS_COLS - 0.01;
+                const brickH = 0.12;
+                const brickD = FIELD.depth - 0.08;
 
-                const startX = -FIELD.width / 2 + 0.05 + (brickWidth / 2);
-                const startY = FIELD.topY - 0.2;
-
-                this.bricksRemaining = BRICKS_COLS * BRICKS_ROWS;
+                const startX = -totalW / 2 + brickW / 2;
+                const startY = FIELD.topY - 0.25;
 
                 for (let r = 0; r < BRICKS_ROWS; r++) {
-                    const rowColor = ROW_COLORS[r % ROW_COLORS.length];
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: rowColor,
-                        metalness: 0.3,
-                        roughness: 0.2,
-                        emissive: rowColor,
-                        emissiveIntensity: 0.25
-                    });
-                    const geo = new THREE.BoxGeometry(brickWidth, brickHeight, BRICK_DEPTH);
+                    const colorHex = ROW_COLORS[r % ROW_COLORS.length];
+                    const y = startY - r * (brickH + 0.012);
 
                     for (let c = 0; c < BRICKS_COLS; c++) {
-                        const brick = new THREE.Mesh(geo, mat);
-                        const px = startX + c * (brickWidth + gap);
-                        const py = startY - r * (brickHeight + gap);
-                        
-                        brick.position.set(px, py, 0);
-                        brick.castShadow = true;
-                        brick.receiveShadow = true;
-                        
-                        // Metadata for collisions
-                        brick.userData = {
-                            isBrick: true,
+                        const x = startX + c * (brickW + 0.01);
+
+                        const geo = new THREE.BoxGeometry(brickW, brickH, brickD);
+                        const mat = new THREE.MeshStandardMaterial({
+                            color: colorHex,
+                            emissive: colorHex,
+                            emissiveIntensity: 0.35,
+                            roughness: 0.2,
+                            metalness: 0.6
+                        });
+
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.position.set(x, y, 0);
+
+                        // Wireframe edges
+                        const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+                        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
+
+                        mesh.userData = {
+                            active: true,
                             row: r,
                             col: c,
-                            width: brickWidth,
-                            height: brickHeight,
-                            depth: BRICK_DEPTH,
+                            w: brickW,
+                            h: brickH,
+                            d: brickD,
                             points: (BRICKS_ROWS - r) * 10
                         };
 
-                        this.bricksGroup.add(brick);
+                        this.bricksGroup.add(mesh);
                     }
                 }
             }
 
             initPaddleAndBall() {
-                // Paddle (Base size: 0.35m wide)
-                this.paddleWidth = 0.38;
-                this.paddleHeight = 0.06;
-                this.paddleDepth = 0.12;
-
-                const paddleGeo = new THREE.BoxGeometry(this.paddleWidth, this.paddleHeight, this.paddleDepth);
-                const paddleMat = new THREE.MeshStandardMaterial({
+                // Paddle
+                const pGeo = new THREE.BoxGeometry(this.paddleWidth, 0.08, 0.20);
+                const pMat = new THREE.MeshStandardMaterial({
                     color: 0x00f0ff,
-                    metalness: 0.8,
-                    roughness: 0.2,
-                    emissive: 0x0077aa,
-                    emissiveIntensity: 0.4
-                });
-
-                this.paddle = new THREE.Mesh(paddleGeo, paddleMat);
-                this.paddle.castShadow = true;
-                this.paddle.receiveShadow = true;
-                this.resetPaddlePosition();
-                this.fieldGroup.add(this.paddle);
-
-                // Ball
-                this.ballRadius = 0.045; // 9cm diameter sphere
-                const ballGeo = new THREE.SphereGeometry(this.ballRadius, 32, 32);
-                const ballMat = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    emissive: 0xffffff,
-                    emissiveIntensity: 0.6,
-                    metalness: 0.1,
+                    emissive: 0x0088bb,
+                    metalness: 0.9,
                     roughness: 0.1
                 });
+                this.paddleMesh = new THREE.Mesh(pGeo, pMat);
+                this.paddleMesh.position.set(0, FIELD.bottomY + 0.15, 0);
+                this.fieldGroup.add(this.paddleMesh);
 
-                this.ball = new THREE.Mesh(ballGeo, ballMat);
-                this.ball.castShadow = true;
-                
-                // Add point light inside ball for glowing trail effect
-                this.ballLight = new THREE.PointLight(0x00f0ff, 1.5, 1.5);
-                this.ball.add(this.ballLight);
+                // Ball
+                const bGeo = new THREE.SphereGeometry(0.045, 32, 32);
+                const bMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    emissive: 0x00f0ff,
+                    emissiveIntensity: 0.9,
+                    roughness: 0.1
+                });
+                this.ballMesh = new THREE.Mesh(bGeo, bMat);
+                this.ballLight = new THREE.PointLight(0x00ffff, 1.5, 1.5);
+                this.ballMesh.add(this.ballLight);
+                this.fieldGroup.add(this.ballMesh);
 
-                this.resetBall();
-                this.fieldGroup.add(this.ball);
+                this.ballVel = new THREE.Vector3(0, 0, 0);
+                this.resetBallAndPaddle();
             }
 
-            resetPaddlePosition() {
-                this.paddle.position.set(0, FIELD.bottomY + 0.1, 0);
-            }
-
-            resetBall() {
-                this.ball.position.set(0, FIELD.centerY - 0.3, 0);
-                this.ballVelocity.set(0, 0, 0);
+            resetBallAndPaddle() {
+                this.paddleX = 0;
+                this.paddleMesh.position.x = 0;
+                this.ballMesh.position.set(0, FIELD.bottomY + 0.30, 0);
+                this.ballVel.set(0, 0, 0);
             }
 
             launchBall() {
-                const angle = (Math.random() * 0.6 - 0.3) * Math.PI; // -54 to +54 deg
-                const speed = this.baseBallSpeed * this.ballSpeedMultiplier;
-                this.ballVelocity.set(
-                    Math.sin(angle) * speed,
-                    -Math.cos(angle) * speed,
-                    0
-                );
+                const angle = (Math.random() * 0.4 - 0.2); // slight random angle
+                this.ballVel.set(Math.sin(angle) * this.ballSpeed, this.ballSpeed, 0);
             }
 
-            // --- LOBBY & TITLE PANEL ---
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
-                
-                // CRITICAL FIX: Place lobby panel in front of play area!
-                // Field is at Z = -1.8m. We place Lobby at Z = -1.1m (0.7m in front of bricks!)
-                this.lobbyGroup.position.set(0, 1.7, -1.1);
+                // Placed in front at Z = -1.1m so it never overlaps the bricks at Z = -1.8m
+                this.lobbyGroup.position.set(0, 1.6, -1.1);
 
-                // Backing Curved/Floating Canvas Panel
-                const panelWidth = 1.2;
-                const panelHeight = 0.85;
-
-                // Create Canvas Texture for High Quality Logo + UI Text
                 const canvas = document.createElement('canvas');
                 canvas.width = 1024;
-                canvas.height = 726;
+                canvas.height = 512;
                 const ctx = canvas.getContext('2d');
 
-                // Render Graphic Logo & Interface on Texture
-                this.renderLobbyCanvas(ctx, canvas.width, canvas.height);
+                // Render stylish Lobby Graphic
+                const grad = ctx.createLinearGradient(0, 0, 1024, 512);
+                grad.addColorStop(0, '#0a0f24');
+                grad.addColorStop(0.5, '#1e0538');
+                grad.addColorStop(1, '#051f38');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 1024, 512);
 
-                this.lobbyTexture = new THREE.CanvasTexture(canvas);
-                const panelGeo = new THREE.PlaneGeometry(panelWidth, panelHeight);
-                const panelMat = new THREE.MeshBasicMaterial({
-                    map: this.lobbyTexture,
-                    transparent: true,
-                    side: THREE.DoubleSide
-                });
+                ctx.strokeStyle = '#00f0ff';
+                ctx.lineWidth = 12;
+                ctx.strokeRect(20, 20, 984, 472);
 
-                const panelMesh = new THREE.Mesh(panelGeo, panelMat);
-                this.lobbyGroup.add(panelMesh);
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'black 72px sans-serif';
+                ctx.shadowColor = '#00f0ff';
+                ctx.shadowBlur = 25;
+                ctx.fillText('ARKANOID 3D XR', 512, 180);
 
-                // Frame backing behind mesh for depth
-                const frameBack = new THREE.Mesh(
-                    new THREE.BoxGeometry(panelWidth + 0.04, panelHeight + 0.04, 0.02),
-                    new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 })
+                ctx.font = 'bold 34px sans-serif';
+                ctx.fillStyle = '#ff00d4';
+                ctx.shadowColor = '#ff00d4';
+                ctx.fillText(`META QUEST 3 EDITION - ${VERSION}`, 512, 260);
+
+                ctx.font = '24px monospace';
+                ctx.fillStyle = '#00ff88';
+                ctx.shadowBlur = 10;
+                ctx.fillText('PREMI "INIZIA GIOCO" PER GIOCARE IN VR/AR', 512, 360);
+
+                const tex = new THREE.CanvasTexture(canvas);
+                const planeMesh = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1.5, 0.75),
+                    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
                 );
-                frameBack.position.z = -0.015;
-                this.lobbyGroup.add(frameBack);
+                this.lobbyGroup.add(planeMesh);
 
-                // Interactive 3D "START GAME" Button
-                const btnGeo = new THREE.BoxGeometry(0.5, 0.12, 0.05);
+                // Interactive 3D "INIZIA GIOCO" Button
+                const btnGeo = new THREE.BoxGeometry(0.60, 0.14, 0.05);
                 const btnMat = new THREE.MeshStandardMaterial({
-                    color: 0x10b981,
-                    emissive: 0x047857,
-                    emissiveIntensity: 0.5,
-                    metalness: 0.5,
+                    color: 0x00d8ff,
+                    emissive: 0x0066cc,
+                    emissiveIntensity: 0.6,
+                    metalness: 0.8,
                     roughness: 0.2
                 });
-                this.startButtonMesh = new THREE.Mesh(btnGeo, btnMat);
-                this.startButtonMesh.position.set(0, -0.26, 0.04);
-                this.startButtonMesh.userData = { isButton: true, action: 'START_GAME' };
+                const startBtn = new THREE.Mesh(btnGeo, btnMat);
+                startBtn.position.set(0, -0.25, 0.04);
+                startBtn.userData = { action: 'START_GAME' };
 
-                // Add 3D Text canvas label for Button
+                // Button 3D Label
                 const btnCanvas = document.createElement('canvas');
                 btnCanvas.width = 512;
                 btnCanvas.height = 128;
                 const bCtx = btnCanvas.getContext('2d');
-                bCtx.fillStyle = '#10b981';
+                bCtx.fillStyle = '#00d8ff';
                 bCtx.fillRect(0, 0, 512, 128);
                 bCtx.fillStyle = '#ffffff';
                 bCtx.font = 'bold 44px sans-serif';
                 bCtx.textAlign = 'center';
                 bCtx.textBaseline = 'middle';
-                bCtx.fillText('▶ INIZIA GIOCO', 256, 64);
+                bCtx.fillText('🚀 INIZIA GIOCO', 256, 64);
 
                 const btnTex = new THREE.CanvasTexture(btnCanvas);
                 const btnLabel = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.48, 0.11),
+                    new THREE.PlaneGeometry(0.58, 0.13),
                     new THREE.MeshBasicMaterial({ map: btnTex, transparent: true })
                 );
                 btnLabel.position.z = 0.028;
-                this.startButtonMesh.add(btnLabel);
+                startBtn.add(btnLabel);
 
-                this.lobbyGroup.add(this.startButtonMesh);
-                this.interactiveObjects.push(this.startButtonMesh);
+                this.lobbyGroup.add(startBtn);
+                this.interactiveObjects.push(startBtn);
 
                 this.scene.add(this.lobbyGroup);
             }
 
-            renderLobbyCanvas(ctx, w, h) {
-                // Background Gradient
-                const grad = ctx.createLinearGradient(0, 0, 0, h);
-                grad.addColorStop(0, 'rgba(15, 23, 42, 0.95)');
-                grad.addColorStop(1, 'rgba(30, 41, 59, 0.95)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, w, h);
-
-                // Border Highlight
-                ctx.strokeStyle = '#00f0ff';
-                ctx.lineWidth = 10;
-                ctx.strokeRect(10, 10, w - 20, h - 20);
-
-                // Simulated `logo.jpg` Image Artwork / Decorative Banner
-                ctx.save();
-                ctx.fillStyle = '#0f172a';
-                ctx.fillRect(40, 40, w - 80, 220);
-                
-                // Neon Grid Pattern in Logo Box
-                ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
-                ctx.lineWidth = 2;
-                for (let x = 40; x < w - 40; x += 30) {
-                    ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, 260); ctx.stroke();
-                }
-                for (let y = 40; y < 260; y += 30) {
-                    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 40, y); ctx.stroke();
-                }
-
-                // Title Text
-                ctx.fillStyle = '#00f0ff';
-                ctx.shadowColor = '#00f0ff';
-                ctx.shadowBlur = 20;
-                ctx.font = '900 72px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('ARKANOID 3D XR', w / 2, 130);
-
-                ctx.fillStyle = '#e2e8f0';
-                ctx.shadowBlur = 0;
-                ctx.font = '600 28px sans-serif';
-                ctx.fillText('RETRO VR & AR BREAKOUT EXPERIENCE', w / 2, 185);
-                ctx.restore();
-
-                // Instructions & Info
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = '500 28px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Muovi il Controller Destro per spostare il Pad', w / 2, 330);
-                ctx.fillText('Distruggi tutti i mattoni e non far cadere la palla', w / 2, 375);
-
-                // Version Tag
-                ctx.fillStyle = '#38bdf8';
-                ctx.font = 'bold 30px monospace';
-                ctx.fillText(`Versione Gioco: ${VERSION}`, w / 2, 450);
-            }
-
-            // --- DEBUG HUD (Positioned on Left Side) ---
             initDebugHUD() {
-                this.hudGroup = new THREE.Group();
-                // Placed on left side, angled 20 degrees towards the center player position
-                this.hudGroup.position.set(-1.5, 1.5, -1.2);
-                this.hudGroup.rotation.y = Math.PI / 8;
-
-                const hudWidth = 0.65;
-                const hudHeight = 0.9;
-
-                // 2D Texture Canvas for HUD Display
                 this.hudCanvas = document.createElement('canvas');
-                this.hudCanvas.width = 512;
-                this.hudCanvas.height = 712;
+                this.hudCanvas.width = 1024;
+                this.hudCanvas.height = 1024;
                 this.hudCtx = this.hudCanvas.getContext('2d');
 
                 this.hudTexture = new THREE.CanvasTexture(this.hudCanvas);
-                const hudGeo = new THREE.PlaneGeometry(hudWidth, hudHeight);
-                const hudMat = new THREE.MeshBasicMaterial({
+                this.hudTexture.minFilter = THREE.LinearFilter;
+
+                const geo = new THREE.PlaneGeometry(1.2, 1.2);
+                const mat = new THREE.MeshBasicMaterial({
                     map: this.hudTexture,
                     transparent: true,
                     side: THREE.DoubleSide
                 });
 
-                const hudMesh = new THREE.Mesh(hudGeo, hudMat);
-                this.hudGroup.add(hudMesh);
+                this.hudMesh = new THREE.Mesh(geo, mat);
+                this.hudMesh.position.set(-1.5, 1.5, -1.2);
+                this.hudMesh.rotation.y = Math.PI / 180 * 30; // Angled towards center
 
-                // Frame mesh
-                const hudFrame = new THREE.Mesh(
-                    new THREE.BoxGeometry(hudWidth + 0.02, hudHeight + 0.02, 0.01),
-                    new THREE.MeshStandardMaterial({ color: 0x1e1b4b, metalness: 0.8, roughness: 0.3 })
-                );
-                hudFrame.position.z = -0.008;
-                this.hudGroup.add(hudFrame);
-
-                // Interactive HUD Buttons (Reset Game / Toggle Speed)
-                const resetBtnGeo = new THREE.BoxGeometry(0.25, 0.07, 0.03);
-                const resetBtnMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, emissiveIntensity: 0.4 });
-                const resetBtn = new THREE.Mesh(resetBtnGeo, resetBtnMat);
-                resetBtn.position.set(-0.14, -0.32, 0.02);
-                resetBtn.userData = { isButton: true, action: 'RESET_GAME' };
-
-                // Label Reset
-                const rCanvas = document.createElement('canvas'); rCanvas.width = 256; rCanvas.height = 64;
-                const rCtx = rCanvas.getContext('2d');
-                rCtx.fillStyle = '#ef4444'; rCtx.fillRect(0,0,256,64);
-                rCtx.fillStyle = '#ffffff'; rCtx.font = 'bold 24px sans-serif'; rCtx.textAlign='center'; rCtx.textBaseline='middle';
-                rCtx.fillText('RESET', 128, 32);
-                const rMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.06), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(rCanvas) }));
-                rMesh.position.z = 0.016;
-                resetBtn.add(rMesh);
-                this.hudGroup.add(resetBtn);
-                this.interactiveObjects.push(resetBtn);
-
-                // Speed Toggle Button
-                const speedBtnMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.4 });
-                const speedBtn = new THREE.Mesh(resetBtnGeo, speedBtnMat);
-                speedBtn.position.set(0.14, -0.32, 0.02);
-                speedBtn.userData = { isButton: true, action: 'TOGGLE_SPEED' };
-
-                const sCanvas = document.createElement('canvas'); sCanvas.width = 256; sCanvas.height = 64;
-                const sCtx = sCanvas.getContext('2d');
-                sCtx.fillStyle = '#3b82f6'; sCtx.fillRect(0,0,256,64);
-                sCtx.fillStyle = '#ffffff'; sCtx.font = 'bold 22px sans-serif'; sCtx.textAlign='center'; sCtx.textBaseline='middle';
-                sCtx.fillText('VELOCITÀ +', 128, 32);
-                const sMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.06), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sCanvas) }));
-                sMesh.position.z = 0.016;
-                speedBtn.add(sMesh);
-                this.hudGroup.add(speedBtn);
-                this.interactiveObjects.push(speedBtn);
-
-                this.scene.add(this.hudGroup);
-                this.updateHUDCanvas();
+                this.scene.add(this.hudMesh);
+                this.renderHUDCanvas();
             }
 
-            updateHUDCanvas() {
+            renderHUDCanvas() {
+                if (!this.hudCtx) return;
                 const ctx = this.hudCtx;
-                const w = this.hudCanvas.width;
-                const h = this.hudCanvas.height;
+                const w = 1024;
+                const h = 1024;
 
-                // Background
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-                ctx.fillRect(0, 0, w, h);
+                ctx.clearRect(0, 0, w, h);
+
+                // HUD Panel Box
+                ctx.fillStyle = 'rgba(10, 16, 32, 0.92)';
+                ctx.strokeStyle = '#00f0ff';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.roundRect(20, 20, w - 40, h - 40, 28);
+                ctx.fill();
+                ctx.stroke();
 
                 // Header
-                ctx.fillStyle = '#38bdf8';
-                ctx.font = 'bold 34px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('PANNELLO HUD & DEBUG', w / 2, 45);
+                ctx.fillStyle = '#00f0ff';
+                ctx.font = 'bold 44px sans-serif';
+                ctx.fillText('ARKANOID XR - HUD DEBUG', w / 2, 85);
 
-                ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 4;
-                ctx.beginPath(); ctx.moveTo(20, 60); ctx.lineTo(w - 20, 60); ctx.stroke();
+                ctx.font = 'bold 26px monospace';
+                ctx.fillStyle = '#ff00d4';
+                ctx.fillText(`VERSIONE GIOCO: ${VERSION}`, w / 2, 130);
 
-                // Stats Listing
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(50, 150); ctx.lineTo(w - 50, 150); ctx.stroke();
+
+                // Telemetry
                 ctx.textAlign = 'left';
-                ctx.font = '26px monospace';
-                
-                const lines = [
-                    { label: 'VERSIONE:', val: VERSION, color: '#38bdf8' },
-                    { label: 'STATO:', val: this.gameState, color: '#facc15' },
-                    { label: 'FPS:', val: `${this.fps}`, color: '#4ade80' },
-                    { label: 'PUNTEGGIO:', val: `${this.score}`, color: '#ffffff' },
-                    { label: 'VITE:', val: '❤️ '.repeat(Math.max(0, this.lives)), color: '#f43f5e' },
-                    { label: 'MATTONI:', val: `${this.bricksRemaining}`, color: '#fb923c' },
-                    { label: 'VELOCITÀ BALL:', val: `${this.ballSpeedMultiplier.toFixed(1)}x`, color: '#c084fc' },
-                    { label: 'X PAD:', val: `${this.paddle ? this.paddle.position.x.toFixed(2) : 0.0} m`, color: '#94a3b8' }
-                ];
+                ctx.font = 'bold 28px monospace';
+                ctx.fillStyle = '#ffea00';
+                ctx.fillText(`STATO GIOCO  : ${this.gameState}`, 80, 210);
+                ctx.fillText(`FPS          : ${this.fps}`, 80, 260);
 
-                let y = 110;
-                lines.forEach(item => {
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.fillText(item.label, 30, y);
-                    ctx.fillStyle = item.color;
-                    ctx.fillText(item.val, 260, y);
-                    y += 45;
-                });
+                ctx.fillStyle = '#00ff88';
+                ctx.fillText(`PUNTEGGIO    : ${this.score.toString().padStart(6, '0')}`, 80, 310);
+                ctx.fillText(`VITE RIMASTE : ${'❤'.repeat(Math.max(0, this.lives))}`, 80, 360);
+
+                const activeBricks = this.bricksGroup ? this.bricksGroup.children.length : 0;
+                ctx.fillText(`MATTONI RIMS : ${activeBricks} / 55`, 80, 410);
+                ctx.fillText(`VEL. PALLA   : ${this.ballSpeed.toFixed(1)} m/s`, 80, 460);
 
                 ctx.fillStyle = '#64748b';
-                ctx.font = '20px sans-serif';
+                ctx.font = '22px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('Tracciamento WebXR: local-floor', w / 2, 580);
+                ctx.fillText('Tracciamento Quota Y=0 (local-floor) Attivo', w / 2, 960);
 
                 this.hudTexture.needsUpdate = true;
             }
 
-            // --- WEBXR & CONTROLLERS ---
-            initWebXR() {
-                // VR Button Handler
-                document.getElementById('btn-vr').addEventListener('click', () => {
-                    audio.init();
-                    this.requestXRSession('immersive-vr');
+            initXRControllers() {
+                this.controllers = [];
+
+                for (let i = 0; i < 2; i++) {
+                    const controller = this.renderer.xr.getController(i);
+                    controller.addEventListener('selectstart', (e) => this.onXRSelectStart(e));
+
+                    // Laser pointer line
+                    const laserGeo = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(0, 0, 0),
+                        new THREE.Vector3(0, 0, -3)
+                    ]);
+                    const laserMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.6 });
+                    const laser = new THREE.Line(laserGeo, laserMat);
+                    controller.add(laser);
+
+                    // Reticle targeting point
+                    const pointer = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.015, 16, 16),
+                        new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+                    );
+                    pointer.position.z = -3;
+                    controller.add(pointer);
+
+                    this.scene.add(controller);
+                    this.controllers.push(controller);
+                }
+            }
+
+            initWebXRButtons() {
+                const btnVR = document.getElementById('btn-vr');
+                const btnAR = document.getElementById('btn-ar');
+                const btnStart2D = document.getElementById('btn-start-game-2d');
+
+                if (btnStart2D) {
+                    btnStart2D.addEventListener('click', () => {
+                        audio.init();
+                        this.startGame();
+                    });
+                }
+
+                if (!navigator.xr) {
+                    showToast('WebXR non rilevato. Usa Meta Quest 3 o un browser abilitato per XR.', 'fa-triangle-exclamation');
+                    return;
+                }
+
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported && btnVR) {
+                        btnVR.addEventListener('click', () => this.requestXRSession('immersive-vr'));
+                    }
                 });
 
-                // AR Button Handler
-                document.getElementById('btn-ar').addEventListener('click', () => {
-                    audio.init();
-                    this.requestXRSession('immersive-ar');
-                });
-
-                // Setup Controllers in Three.js
-                this.controller1 = this.renderer.xr.getController(0);
-                this.controller1.addEventListener('selectstart', (e) => this.onSelectStart(e));
-                this.scene.add(this.controller1);
-
-                this.controller2 = this.renderer.xr.getController(1);
-                this.controller2.addEventListener('selectstart', (e) => this.onSelectStart(e));
-                this.scene.add(this.controller2);
-
-                // Controller Ray Laser Graphics
-                const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)]);
-                const rayMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.6 });
-                
-                const ray1 = new THREE.Line(rayGeo, rayMat);
-                this.controller1.add(ray1);
-                
-                const ray2 = new THREE.Line(rayGeo, rayMat);
-                this.controller2.add(ray2);
-
-                // Target Right Controller Specifically for Paddle Drive
-                this.renderer.xr.addEventListener('sessionstart', () => {
-                    const session = this.renderer.xr.getSession();
-                    // Set WebXR reference space to local-floor as requested
-                    this.renderer.xr.setReferenceSpaceType('local-floor');
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                    if (supported && btnAR) {
+                        btnAR.addEventListener('click', () => this.requestXRSession('immersive-ar'));
+                    }
                 });
             }
 
             async requestXRSession(mode) {
-                if (!navigator.xr) {
-                    alert('WebXR non supportato su questo browser. Utilizza il browser di Meta Quest 3.');
-                    return;
-                }
-
+                audio.init();
                 try {
-                    const sessionInit = {
-                        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
-                    };
+                    const sessionInit = { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] };
                     const session = await navigator.xr.requestSession(mode, sessionInit);
                     this.renderer.xr.setSession(session);
-                    
-                    document.getElementById('overlay-ui').style.display = 'none';
-                } catch (e) {
-                    alert(`Impossibile avviare la sessione ${mode.toUpperCase()}: ${e.message}`);
+
+                    // KEY FIX: Clear background in AR mode for Meta Quest 3 passthrough!
+                    if (mode === 'immersive-ar') {
+                        this.scene.background = null;
+                        this.floorGrid.visible = false;
+                        this.renderer.setClearColor(0x000000, 0);
+                    } else {
+                        this.scene.background = new THREE.Color(0x080c14);
+                        this.floorGrid.visible = true;
+                        this.renderer.setClearColor(0x080c14, 1);
+                    }
+
+                    session.addEventListener('end', () => {
+                        this.scene.background = new THREE.Color(0x080c14);
+                        this.floorGrid.visible = true;
+                        this.renderHUDCanvas();
+                    });
+
+                    showToast(`Sessione ${mode.toUpperCase()} avviata con successo!`, 'fa-circle-check');
+                } catch (err) {
+                    console.error('Errore avvio WebXR:', err);
+                    showToast(`Impossibile avviare la sessione ${mode.toUpperCase()}`, 'fa-triangle-exclamation');
                 }
             }
 
-            onSelectStart(event) {
+            onXRSelectStart(event) {
                 audio.init();
                 const controller = event.target;
                 this.tempMatrix.identity().extractRotation(controller.matrixWorld);
@@ -771,248 +675,200 @@
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
                 const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
-
                 if (intersects.length > 0) {
-                    let obj = intersects[0].object;
-                    while (obj && !obj.userData.action && obj.parent) {
-                        obj = obj.parent;
-                    }
-                    if (obj && obj.userData.action) {
-                        this.handleUIAction(obj.userData.action);
-                    }
-                }
-            }
-
-            handleUIAction(action) {
-                if (action === 'START_GAME') {
+                    audio.uiClick();
                     this.startGame();
-                } else if (action === 'RESET_GAME') {
-                    this.resetToLobby();
-                } else if (action === 'TOGGLE_SPEED') {
-                    this.ballSpeedMultiplier = this.ballSpeedMultiplier >= 2.0 ? 1.0 : this.ballSpeedMultiplier + 0.3;
-                    audio.scoreUp();
+                    return;
+                }
+
+                if (this.gameState === 'LOBBY' || this.gameState === 'GAMEOVER') {
+                    this.startGame();
                 }
             }
 
-            initEventListeners() {
+            initDesktopEvents() {
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
                     this.renderer.setSize(window.innerWidth, window.innerHeight);
                 });
 
-                // Desktop Mouse Movement for Pad Control & Raycast
                 window.addEventListener('mousemove', (e) => {
-                    this.mousePosition.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    this.mousePosition.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-                    // Mouse Pad Control in Desktop Mode
                     if (!this.renderer.xr.isPresenting) {
-                        const targetX = this.mousePosition.x * (FIELD.width / 2);
-                        this.updatePaddlePosition(targetX);
+                        const normX = (e.clientX / window.innerWidth) * 2 - 1;
+                        this.paddleX = normX * (FIELD.width / 2);
                     }
                 });
 
-                // Desktop Mouse Click for UI
-                window.addEventListener('click', () => {
+                window.addEventListener('click', (e) => {
+                    if (e.target.closest('#overlay-ui')) return;
                     audio.init();
-                    if (!this.renderer.xr.isPresenting) {
-                        this.raycaster.setFromCamera(this.mousePosition, this.camera);
-                        const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
-                        if (intersects.length > 0) {
-                            let obj = intersects[0].object;
-                            while (obj && !obj.userData.action && obj.parent) {
-                                obj = obj.parent;
-                            }
-                            if (obj && obj.userData.action) {
-                                this.handleUIAction(obj.userData.action);
-                            }
-                        }
+
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
+
+                    if (intersects.length > 0) {
+                        audio.uiClick();
+                        this.startGame();
+                    } else if (this.gameState === 'LOBBY') {
+                        this.startGame();
                     }
                 });
             }
 
-            // --- GAME CONTROL FLOW ---
             startGame() {
                 this.gameState = 'PLAYING';
                 this.score = 0;
                 this.lives = 3;
-                this.lobbyGroup.visible = false; // Hide Lobby Logo Panel
-                this.buildBrickMatrix();
-                this.resetPaddlePosition();
-                this.resetBall();
+                this.lobbyGroup.visible = false; // Hide 3D Lobby Logo
+                this.buildBricks();
+                this.resetBallAndPaddle();
                 this.launchBall();
-                audio.scoreUp();
+                this.renderHUDCanvas();
             }
 
-            resetToLobby() {
+            returnToLobby() {
                 this.gameState = 'LOBBY';
-                this.lobbyGroup.visible = true; // Show Lobby Logo Panel again
-                this.resetPaddlePosition();
-                this.resetBall();
+                this.lobbyGroup.visible = true; // Show 3D Lobby Logo
+                this.resetBallAndPaddle();
+                this.renderHUDCanvas();
             }
 
-            updatePaddlePosition(targetX) {
-                // Clamp paddle inside game field boundaries
-                const maxExtent = (FIELD.width / 2) - (this.paddleWidth / 2);
-                this.paddle.position.x = THREE.MathUtils.clamp(targetX, -maxExtent, maxExtent);
-            }
-
-            // --- ENGINE UPDATE & PHYSICS ---
-            updatePhysics(delta) {
+            updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING') return;
 
                 // Move Ball
-                this.ball.position.addScaledVector(this.ballVelocity, delta);
+                this.ballMesh.position.x += this.ballVel.x * dt;
+                this.ballMesh.position.y += this.ballVel.y * dt;
 
-                const bPos = this.ball.position;
-                const r = this.ballRadius;
+                const ballR = 0.045;
+                const halfW = FIELD.width / 2;
 
-                // 1. Boundary Collisions (Left, Right, Top)
-                const minX = -FIELD.width / 2 + r;
-                const maxX = FIELD.width / 2 - r;
-                const maxY = FIELD.topY - r;
-
-                if (bPos.x <= minX) {
-                    bPos.x = minX;
-                    this.ballVelocity.x *= -1;
+                // Wall bounce
+                if (this.ballMesh.position.x - ballR <= -halfW) {
+                    this.ballMesh.position.x = -halfW + ballR;
+                    this.ballVel.x = Math.abs(this.ballVel.x);
                     audio.wallHit();
-                } else if (bPos.x >= maxX) {
-                    bPos.x = maxX;
-                    this.ballVelocity.x *= -1;
+                } else if (this.ballMesh.position.x + ballR >= halfW) {
+                    this.ballMesh.position.x = halfW - ballR;
+                    this.ballVel.x = -Math.abs(this.ballVel.x);
                     audio.wallHit();
                 }
 
-                if (bPos.y >= maxY) {
-                    bPos.y = maxY;
-                    this.ballVelocity.y *= -1;
+                // Ceiling bounce
+                if (this.ballMesh.position.y + ballR >= FIELD.topY) {
+                    this.ballMesh.position.y = FIELD.topY - ballR;
+                    this.ballVel.y = -Math.abs(this.ballVel.y);
                     audio.wallHit();
                 }
 
-                // 2. Paddle Collision
-                const pPos = this.paddle.position;
-                const halfPWidth = this.paddleWidth / 2;
-                const halfPHeight = this.paddleHeight / 2;
-
-                if (bPos.y - r <= pPos.y + halfPHeight && 
-                    bPos.y + r >= pPos.y - halfPHeight &&
-                    bPos.x >= pPos.x - halfPWidth && 
-                    bPos.x <= pPos.x + halfPWidth &&
-                    this.ballVelocity.y < 0) {
-                    
-                    bPos.y = pPos.y + halfPHeight + r;
-                    
-                    // Angle rebound based on hit position relative to paddle center
-                    const hitOffset = (bPos.x - pPos.x) / halfPWidth; // -1.0 to 1.0
-                    const maxAngle = Math.PI / 3; // 60 degrees max
-                    const bounceAngle = hitOffset * maxAngle;
-
-                    const speed = this.ballVelocity.length();
-                    this.ballVelocity.x = Math.sin(bounceAngle) * speed;
-                    this.ballVelocity.y = Math.cos(bounceAngle) * speed;
-
-                    audio.paddleHit();
-                }
-
-                // 3. Brick Collisions
-                const bricks = this.bricksGroup.children;
-                for (let i = bricks.length - 1; i >= 0; i--) {
-                    const brick = bricks[i];
-                    if (!brick.visible) continue;
-
-                    const bX = brick.position.x;
-                    const bY = brick.position.y;
-                    const w2 = brick.userData.width / 2;
-                    const h2 = brick.userData.height / 2;
-
-                    // AABB Collision check
-                    if (bPos.x + r >= bX - w2 && bPos.x - r <= bX + w2 &&
-                        bPos.y + r >= bY - h2 && bPos.y - r <= bY + h2) {
-                        
-                        // Destroy Brick
-                        this.bricksGroup.remove(brick);
-                        brick.geometry.dispose();
-                        brick.material.dispose();
-
-                        this.score += brick.userData.points;
-                        this.bricksRemaining--;
-
-                        // Simple velocity reflect
-                        this.ballVelocity.y *= -1;
-
-                        audio.brickHit(brick.userData.row);
-
-                        // Check Win Condition
-                        if (this.bricksRemaining <= 0) {
-                            audio.scoreUp();
-                            this.buildBrickMatrix(); // Reset next level
-                            this.resetBall();
-                            this.launchBall();
-                        }
-                        break;
-                    }
-                }
-
-                // 4. Ball Out Bottom (Life Lost)
-                if (bPos.y < FIELD.bottomY - 0.2) {
+                // Bottom loss condition
+                if (this.ballMesh.position.y - ballR <= FIELD.bottomY) {
                     this.lives--;
-                    audio.gameOver();
+                    audio.lifeLost();
 
                     if (this.lives <= 0) {
                         this.gameState = 'GAMEOVER';
-                        setTimeout(() => this.resetToLobby(), 2000);
+                        this.returnToLobby();
                     } else {
-                        this.resetBall();
+                        this.resetBallAndPaddle();
                         this.launchBall();
+                    }
+                    this.renderHUDCanvas();
+                    return;
+                }
+
+                // Paddle collision
+                const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
+                const ballBox = new THREE.Box3().setFromObject(this.ballMesh);
+
+                if (padBox.intersectsBox(ballBox) && this.ballVel.y < 0) {
+                    this.ballVel.y = Math.abs(this.ballVel.y);
+                    const hitOffset = (this.ballMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
+                    this.ballVel.x = hitOffset * (this.ballSpeed * 0.85);
+                    this.ballVel.normalize().multiplyScalar(this.ballSpeed);
+                    audio.paddleHit();
+                }
+
+                // Brick collisions
+                const bricks = this.bricksGroup.children;
+                for (let i = bricks.length - 1; i >= 0; i--) {
+                    const b = bricks[i];
+                    if (!b.visible) continue;
+
+                    const brickBox = new THREE.Box3().setFromObject(b);
+                    if (brickBox.intersectsBox(ballBox)) {
+                        b.visible = false;
+                        this.bricksGroup.remove(b);
+                        b.geometry.dispose();
+                        b.material.dispose();
+
+                        this.ballVel.y = -this.ballVel.y;
+                        this.score += b.userData.points;
+
+                        audio.brickHit(b.userData.row);
+
+                        if (this.bricksGroup.children.length === 0) {
+                            this.gameState = 'VICTORY';
+                            audio.gameWin();
+                            this.returnToLobby();
+                        }
+
+                        this.renderHUDCanvas();
+                        break;
                     }
                 }
             }
 
-            updateXRControllers() {
-                if (!this.renderer.xr.isPresenting) return;
+            updatePaddlePosition() {
+                const halfPad = this.paddleWidth / 2;
+                const maxClampedX = FIELD.width / 2 - halfPad;
 
-                // Get Right Controller Position for Pad Motion
-                const session = this.renderer.xr.getSession();
-                if (!session) return;
-
-                // Controller index 1 is typically Right Controller
-                const rightHand = this.controller2; 
-                if (rightHand) {
-                    // Extract World position of controller
-                    const worldPos = new THREE.Vector3();
-                    rightHand.getWorldPosition(worldPos);
-
-                    // Link Pad X to Right Controller World X
-                    this.updatePaddlePosition(worldPos.x);
+                if (this.renderer.xr.isPresenting) {
+                    // Drive paddle with Right VR Controller position
+                    const rightController = this.controllers[1];
+                    if (rightController) {
+                        this.paddleX = rightController.position.x;
+                    }
                 }
+
+                this.paddleX = THREE.MathUtils.clamp(this.paddleX, -maxClampedX, maxClampedX);
+                this.paddleMesh.position.x = this.paddleX;
             }
 
-            render(time, frame) {
-                // Delta time calculation
+            render(timestamp, frame) {
                 const now = performance.now();
-                const delta = Math.min((now - this.lastTime) / 1000, 0.1);
-                this.lastTime = now;
+                const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
+                this.lastFrameTime = now;
 
-                // FPS Counter Update
+                // FPS Counter
                 this.frameCount++;
-                if (this.frameCount % 30 === 0) {
-                    this.fps = Math.round(1 / delta);
-                    this.updateHUDCanvas();
+                if (now - this.lastFpsCheck >= 1000) {
+                    this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsCheck));
+                    this.frameCount = 0;
+                    this.lastFpsCheck = now;
+                    this.renderHUDCanvas();
                 }
 
-                // Handlers
-                this.updateXRControllers();
-                this.updatePhysics(delta);
+                this.updatePaddlePosition();
+                this.updatePhysics(dt);
 
-                // Render Scene
+                // Pulse light intensity
+                if (this.ballLight) {
+                    this.ballLight.intensity = 1.2 + Math.sin(now * 0.01) * 0.4;
+                }
+
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
-        // Initialize App on DOM Ready
-        window.addEventListener('DOMContentLoaded', () => {
+        // --- APPLICATION ENTRY POINT ---
+        window.onload = () => {
             window.app = new ArkanoidXRApp();
-        });
+        };
     </script>
 </body>
 </html>
