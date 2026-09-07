@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.6.0</title>
+    <title>ARkanium v3.7.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.6.0
+                            v3.7.0
                         </span>
                     </div>
                 </div>
@@ -98,7 +98,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.6.0";
+        const VERSION = "v3.7.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -172,7 +172,6 @@
 
             playArpeggioNote(step) {
                 if (this.muted || !this.ctx) return;
-                // 8-note arpeggio loop: 4 notes ascending (C3, E3, G3, C4), 4 notes descending (B3, G3, E3, D3)
                 const freqs = [130.81, 164.81, 196.00, 261.63, 246.94, 196.00, 164.81, 146.83];
                 this.playTone(freqs[step % 8], 'sawtooth', 0.065, 0.18);
             }
@@ -368,6 +367,10 @@
                 this.paddleWidth = 0.38 * 0.90; 
                 this.paddleX = 0;
 
+                // Level tracking variables
+                this.levelStartScore = 0;
+                this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
+
                 this.fieldScale = 1.0;
                 this.fieldPosY = 0.0;
 
@@ -421,6 +424,7 @@
                 this.initPaddleAndBall();
                 this.initLobbyPanel();
                 this.initGameOverPanel();
+                this.initLevelSummaryPanel();
                 this.initDebugHUD();
                 this.initBonusLegendHUD();
                 this.particlePool = new QuestPyrotechnicParticlePool(this.fieldGroup);
@@ -915,6 +919,107 @@
                 this.gameOverTexture.needsUpdate = true;
             }
 
+            // LEVEL END SUMMARY PANEL
+            initLevelSummaryPanel() {
+                this.levelSummaryGroup = new THREE.Group();
+                this.levelSummaryGroup.position.set(0, 1.6, -1.1);
+                this.levelSummaryGroup.visible = false;
+
+                this.levelSummaryCanvas = document.createElement('canvas');
+                this.levelSummaryCanvas.width = 1024; this.levelSummaryCanvas.height = 640;
+                this.levelSummaryCtx = this.levelSummaryCanvas.getContext('2d');
+
+                this.levelSummaryTexture = new THREE.CanvasTexture(this.levelSummaryCanvas);
+                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshBasicMaterial({ map: this.levelSummaryTexture, transparent: true, side: THREE.DoubleSide }));
+                this.levelSummaryGroup.add(planeMesh);
+
+                const btnGeo = new THREE.BoxGeometry(0.64, 0.14, 0.05);
+                const btnMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x008844, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.2 });
+                const nextBtn = new THREE.Mesh(btnGeo, btnMat);
+                nextBtn.position.set(0, -0.36, 0.04);
+                nextBtn.userData = { action: 'NEXT_LEVEL' };
+
+                const btnCanvas = document.createElement('canvas');
+                btnCanvas.width = 512; btnCanvas.height = 128;
+                const bCtx = btnCanvas.getContext('2d');
+                bCtx.fillStyle = '#00ff88'; bCtx.fillRect(0, 0, 512, 128);
+                bCtx.fillStyle = '#000000'; bCtx.font = 'bold 40px sans-serif'; bCtx.textAlign = 'center'; bCtx.textBaseline = 'middle';
+                bCtx.fillText('NEXT LEVEL 🚀', 256, 64);
+
+                const btnTex = new THREE.CanvasTexture(btnCanvas);
+                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.13), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
+                btnLabel.position.z = 0.028;
+                nextBtn.add(btnLabel);
+
+                this.levelSummaryGroup.add(nextBtn);
+                this.interactiveObjects.push(nextBtn);
+                this.scene.add(this.levelSummaryGroup);
+            }
+
+            renderLevelSummaryCanvas() {
+                if (!this.levelSummaryCtx) return;
+                const ctx = this.levelSummaryCtx;
+                const w = 1024; const h = 640;
+                ctx.clearRect(0, 0, w, h);
+
+                const grad = ctx.createLinearGradient(0, 0, w, h);
+                grad.addColorStop(0, '#0a1a2f'); grad.addColorStop(0.5, '#052a38'); grad.addColorStop(1, '#1a0f2e');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 10; ctx.strokeRect(16, 16, w - 32, h - 32);
+
+                ctx.textAlign = 'center'; ctx.fillStyle = '#00ff88'; ctx.font = 'black 64px sans-serif'; ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 24;
+                ctx.fillText(`LEVEL ${this.level} COMPLETED!`, w / 2, 85);
+
+                ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 110); ctx.lineTo(w - 50, 110); ctx.stroke();
+
+                const levelPoints = Math.max(0, this.score - this.levelStartScore);
+                ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.font = 'bold 34px monospace';
+                
+                ctx.fillStyle = '#ffea00'; ctx.fillText(`POINTS THIS LEVEL : +${levelPoints}`, 90, 175);
+                ctx.fillStyle = '#00f0ff'; ctx.fillText(`TOTAL SCORE       : ${this.score.toString().padStart(6, '0')}`, 90, 230);
+
+                ctx.fillStyle = '#ff00d4'; ctx.font = 'bold 30px sans-serif';
+                ctx.fillText('BONUSES COLLECTED:', 90, 295);
+
+                const bonusKeys = ['F', '$', 'X', 'B', 'M', 'S', 'L'];
+                const bonusColors = { 'F': '#ff6600', '$': '#ffea00', 'X': '#ff0000', 'B': '#ff007f', 'M': '#a855f7', 'S': '#00f0ff', 'L': '#00ff88' };
+                let totalCollected = 0;
+
+                const startX = 90; const startY = 325; const boxW = 110; const gapX = 20;
+
+                bonusKeys.forEach((key, idx) => {
+                    const cnt = this.levelBonusesCollected[key] || 0;
+                    totalCollected += cnt;
+                    const x = startX + idx * (boxW + gapX);
+
+                    ctx.fillStyle = bonusColors[key];
+                    ctx.beginPath(); ctx.roundRect(x, startY, boxW, boxW, 14); ctx.fill();
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+
+                    ctx.fillStyle = (key === '$') ? '#000000' : '#ffffff';
+                    ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(key, x + boxW / 2, startY + boxW / 2 - 10);
+
+                    ctx.fillStyle = cnt > 0 ? '#ffffff' : '#64748b';
+                    ctx.font = 'bold 24px monospace';
+                    ctx.fillText(`x${cnt}`, x + boxW / 2, startY + boxW - 16);
+                });
+
+                ctx.textAlign = 'center'; ctx.fillStyle = '#cbd5e1'; ctx.font = '24px sans-serif';
+                ctx.fillText(`Total Items Collected in Level: ${totalCollected}`, w / 2, 480);
+
+                this.levelSummaryTexture.needsUpdate = true;
+            }
+
+            showLevelSummary() {
+                this.gameState = 'LEVEL_SUMMARY';
+                audio.levelUp();
+                this.clearPowerUpsAndBullets();
+                this.renderLevelSummaryCanvas();
+                this.levelSummaryGroup.visible = true;
+                showToast(`Level ${this.level} Complete!`, 'fa-trophy');
+            }
+
             // LEFT DEBUG & CONTROL HUD
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
@@ -1248,6 +1353,7 @@
 
             handleAction(action) {
                 if (action === 'START_GAME') this.startGame();
+                else if (action === 'NEXT_LEVEL') { this.levelSummaryGroup.visible = false; this.advanceLevel(); }
                 else if (action === 'EXIT_GAME') { this.returnToLobby(); showToast('Returned to Lobby', 'fa-house'); }
                 else if (action === 'TOGGLE_MODE') { this.controlMode = this.controlMode === 'RAY' ? 'TILT' : 'RAY'; this.updateButtonLabels(); this.renderHUDCanvas(); showToast(`Control Mode: ${this.controlMode === 'RAY' ? 'RAY 1:1' : 'TILT'}`, 'fa-sliders'); }
                 else if (action === 'TOGGLE_HAND') { this.activeHand = this.activeHand === 'RIGHT' ? 'LEFT' : 'RIGHT'; this.updateButtonLabels(); this.renderHUDCanvas(); showToast(`Active Hand: ${this.activeHand}`, 'fa-hand'); }
@@ -1259,12 +1365,15 @@
                 this.prng.reset(INITIAL_PRNG_SEED);
                 this.gameState = 'PLAYING';
                 this.level = 1; this.score = 0; this.lives = 3; this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
+                this.levelStartScore = 0;
+                this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
                 this.showLasersInGame = false;
                 this.isLevelTransitioning = false;
                 this.arpeggioTimer = 0;
                 this.arpeggioStep = 0;
                 this.lobbyGroup.visible = false;
                 this.gameOverGroup.visible = false;
+                this.levelSummaryGroup.visible = false;
 
                 this.buildBricksForLevel(this.level);
                 this.resetBallAndPaddle();
@@ -1283,7 +1392,11 @@
                     this.returnToLobby();
                     this.isLevelTransitioning = false;
                 } else {
-                    audio.levelUp(); this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
+                    this.gameState = 'PLAYING';
+                    this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
+                    this.levelStartScore = this.score;
+                    this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
+                    
                     this.buildBricksForLevel(this.level);
                     this.resetBallAndPaddle();
                     this.renderHUDCanvas();
@@ -1301,6 +1414,7 @@
                 this.gameState = 'LOBBY';
                 this.lobbyGroup.visible = true;
                 this.gameOverGroup.visible = false;
+                this.levelSummaryGroup.visible = false;
                 this.resetBallAndPaddle();
                 this.renderHUDCanvas();
             }
@@ -1313,6 +1427,7 @@
                 audio.gameOver();
                 showToast('GAME OVER! No lives remaining.', 'fa-skull');
                 this.lobbyGroup.visible = false;
+                this.levelSummaryGroup.visible = false;
                 this.renderGameOverCanvas();
                 this.gameOverGroup.visible = true;
                 this.resetBallAndPaddle();
@@ -1389,6 +1504,10 @@
                     if (pBox.intersectsBox(padBox)) {
                         audio.powerUpPickup();
                         const type = p.userData.type;
+
+                        if (this.levelBonusesCollected[type] !== undefined) {
+                            this.levelBonusesCollected[type]++;
+                        }
 
                         if (type === '$') {
                             this.score += 300;
@@ -1497,7 +1616,7 @@
                             bulletHit = true;
 
                             if (this.getRemainingBricksCount() === 0) {
-                                this.advanceLevel();
+                                this.showLevelSummary();
                                 return;
                             } else {
                                 this.renderHUDCanvas();
@@ -1606,7 +1725,7 @@
                             }
 
                             if (this.getRemainingBricksCount() === 0) {
-                                this.advanceLevel();
+                                this.showLevelSummary();
                                 return;
                             } else {
                                 this.renderHUDCanvas();
