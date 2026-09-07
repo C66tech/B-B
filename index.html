@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.9.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v3.0.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.9.0
+                            v3.0.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.9.0";
+        const VERSION = "v3.0.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -377,7 +377,7 @@
                 this.explosiveTimer = 0;
                 this.hasBarrier = false;
 
-                this.balls = []; // Supports Multi-Ball!
+                this.balls = [];
                 this.activePowerUps = [];
                 this.bullets = [];
 
@@ -463,25 +463,26 @@
                 backPlane.position.set(0, FIELD.centerY, -FIELD.depth / 2);
                 this.fieldGroup.add(backPlane);
 
+                // BOTTOM HAZARD BAR (Changes Color to Pink when Barrier is active!)
                 const hazardGeo = new THREE.BoxGeometry(FIELD.width, 0.02, FIELD.depth);
-                const hazardMat = new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xff0044, emissiveIntensity: 0.7 });
-                const hazardBar = new THREE.Mesh(hazardGeo, hazardMat);
-                hazardBar.position.set(0, FIELD.bottomY, 0);
-                this.fieldGroup.add(hazardBar);
-
-                // BARRIER / SHIELD MESH
-                const barrierGeo = new THREE.BoxGeometry(FIELD.width, 0.03, FIELD.depth * 1.2);
-                const barrierMat = new THREE.MeshStandardMaterial({
-                    color: 0x3b82f6, emissive: 0x3b82f6, emissiveIntensity: 0.9, transparent: true, opacity: 0.75
-                });
-                this.barrierMesh = new THREE.Mesh(barrierGeo, barrierMat);
-                this.barrierMesh.position.set(0, FIELD.bottomY + 0.02, 0);
-                this.barrierMesh.visible = false;
-                this.fieldGroup.add(this.barrierMesh);
+                this.hazardMat = new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xff0044, emissiveIntensity: 0.7 });
+                this.hazardBar = new THREE.Mesh(hazardGeo, this.hazardMat);
+                this.hazardBar.position.set(0, FIELD.bottomY, 0);
+                this.fieldGroup.add(this.hazardBar);
 
                 this.bricksGroup = new THREE.Group();
                 this.fieldGroup.add(this.bricksGroup);
                 this.scene.add(this.fieldGroup);
+            }
+
+            setHazardBarState(isBarrierActive) {
+                if (isBarrierActive) {
+                    this.hazardMat.color.setHex(0xff007f); // ROSA
+                    this.hazardMat.emissive.setHex(0xff007f);
+                } else {
+                    this.hazardMat.color.setHex(0xff0044); // ROSSO standard
+                    this.hazardMat.emissive.setHex(0xff0044);
+                }
             }
 
             getRemainingBricksCount() {
@@ -584,11 +585,11 @@
                     let bonusType = 'F';
 
                     if (roll < 0.10) bonusType = 'L';      // 10% Extra Life
-                    else if (roll < 0.25) bonusType = 'M'; // 15% Multi-Ball
-                    else if (roll < 0.40) bonusType = 'X'; // 15% Explosive Ball
-                    else if (roll < 0.55) bonusType = 'B'; // 15% Barrier Shield
+                    else if (roll < 0.25) bonusType = 'M'; // 15% Multi-Ball (Single Extra Ball)
+                    else if (roll < 0.40) bonusType = 'X'; // 15% Explosive Ball (Full Red)
+                    else if (roll < 0.55) bonusType = 'B'; // 15% Barrier Shield (Rosa)
                     else if (roll < 0.75) bonusType = 'S'; // 20% Speed Slow
-                    else bonusType = 'F';                  // 25% Fire Mode
+                    else bonusType = 'F';                  // 25% Fire Mode (Arancione Full)
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -611,13 +612,13 @@
 
             createBallInstance(x, y, velX = 0, velY = 0) {
                 const bMat = new THREE.MeshStandardMaterial({
-                    color: 0xffffff, emissive: this.isExplosiveActive ? 0xff0055 : 0x00f0ff,
+                    color: 0xffffff, emissive: this.isExplosiveActive ? 0xff0000 : 0x00f0ff,
                     emissiveIntensity: 0.9, roughness: 0.1
                 });
                 const mesh = new THREE.Mesh(this.sharedBallGeo, bMat);
                 mesh.position.set(x, y, 0);
 
-                const light = new THREE.PointLight(this.isExplosiveActive ? 0xff0055 : 0x00ffff, 1.5, 1.5);
+                const light = new THREE.PointLight(this.isExplosiveActive ? 0xff0000 : 0x00ffff, 1.5, 1.5);
                 mesh.add(light);
                 this.fieldGroup.add(mesh);
 
@@ -625,10 +626,10 @@
             }
 
             setPaddleBonusState(bonusType) {
-                if (bonusType === 'FIRE') {
+                if (bonusType === 'FIRE') { // F: ARANCIONE FULL
                     this.isFireActive = true;
-                    this.paddleMat.color.setHex(0xff3300);
-                    this.paddleMat.emissive.setHex(0x991100);
+                    this.paddleMat.color.setHex(0xff6600);
+                    this.paddleMat.emissive.setHex(0x993300);
                 } else if (bonusType === 'SPEED') {
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0x00f0ff);
@@ -637,14 +638,14 @@
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0x00ff88);
                     this.paddleMat.emissive.setHex(0x008844);
-                } else if (bonusType === 'EXPLOSIVE') {
+                } else if (bonusType === 'EXPLOSIVE') { // X: ROSSO FULL
                     this.isFireActive = false;
-                    this.paddleMat.color.setHex(0xff0055);
-                    this.paddleMat.emissive.setHex(0x990033);
-                } else if (bonusType === 'BARRIER') {
+                    this.paddleMat.color.setHex(0xff0000);
+                    this.paddleMat.emissive.setHex(0x990000);
+                } else if (bonusType === 'BARRIER') { // B: ROSA
                     this.isFireActive = false;
-                    this.paddleMat.color.setHex(0x3b82f6);
-                    this.paddleMat.emissive.setHex(0x1d4ed8);
+                    this.paddleMat.color.setHex(0xff007f);
+                    this.paddleMat.emissive.setHex(0x99004c);
                 } else {
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0xffffff);
@@ -659,12 +660,13 @@
                 c.width = 128; c.height = 128;
                 const ctx = c.getContext('2d');
 
-                let colorHex = '#ff3300';
-                if (type === 'S') colorHex = '#00f0ff';
-                else if (type === 'L') colorHex = '#00ff88';
-                else if (type === 'X') colorHex = '#ff0055';
-                else if (type === 'M') colorHex = '#a855f7';
-                else if (type === 'B') colorHex = '#3b82f6';
+                let colorHex = '#ff6600'; // Default Orange
+                if (type === 'F') colorHex = '#ff6600';      // Arancione Full
+                else if (type === 'X') colorHex = '#ff0000'; // Rosso Full
+                else if (type === 'B') colorHex = '#ff007f'; // Rosa
+                else if (type === 'S') colorHex = '#00f0ff'; // Cyan
+                else if (type === 'L') colorHex = '#00ff88'; // Green
+                else if (type === 'M') colorHex = '#a855f7'; // Purple
 
                 ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 128, 128);
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 118, 118);
@@ -693,7 +695,7 @@
 
                 [leftX, rightX].forEach((xPos) => {
                     const geo = new THREE.CylinderGeometry(0.008, 0.008, 0.08);
-                    const mat = new THREE.MeshBasicMaterial({ color: 0xff3300 });
+                    const mat = new THREE.MeshBasicMaterial({ color: 0xff6600 });
                     const bullet = new THREE.Mesh(geo, mat);
                     bullet.position.set(xPos, barrelY, 0);
                     this.fieldGroup.add(bullet);
@@ -777,7 +779,7 @@
                 this.explosiveTimer = 0;
                 this.isExplosiveActive = false;
                 this.hasBarrier = false;
-                if (this.barrierMesh) this.barrierMesh.visible = false;
+                this.setHazardBarState(false);
                 this.setPaddleBonusState(false);
             }
 
@@ -1199,7 +1201,6 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
-                // Fire Bonus Timer
                 if (this.isFireActive) {
                     this.fireTimer -= dt;
                     if (this.fireTimer <= 0) {
@@ -1210,7 +1211,6 @@
                     this.renderHUDCanvas();
                 }
 
-                // Explosive Bonus Timer
                 if (this.isExplosiveActive) {
                     this.explosiveTimer -= dt;
                     if (this.explosiveTimer <= 0) {
@@ -1228,7 +1228,7 @@
 
                 const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
 
-                // --- POWER-UPS PICKUP PHYSICS ---
+                // POWER-UP PICKUPS
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1259,27 +1259,31 @@
                             this.explosiveTimer = 8.0;
                             this.isExplosiveActive = true;
                             this.balls.forEach(b => {
-                                b.mesh.material.emissive.setHex(0xff0055);
-                                if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0055);
+                                b.mesh.material.emissive.setHex(0xff0000); // ROSSO FULL
+                                if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0000);
                             });
                             this.setPaddleBonusState('EXPLOSIVE');
                             showToast('💥 BONUS X: Explosive Area Impact!', 'fa-burst');
                         } else if (type === 'M') {
-                            // Multi-ball: Spawn 2 extra balls for each current ball
-                            const currentBalls = [...this.balls];
-                            currentBalls.forEach(b => {
-                                const spd = b.vel.length() || (this.baseBallSpeed * this.speedMultiplier);
-                                const angle1 = Math.atan2(b.vel.y, b.vel.x) + 0.43; // ~25 deg
-                                const angle2 = Math.atan2(b.vel.y, b.vel.x) - 0.43;
+                            // FIX: Produce ESATTAMENTE UNA SOLA palla extra!
+                            if (this.balls.length > 0) {
+                                const refBall = this.balls[0];
+                                const spd = refBall.vel.length() || (this.baseBallSpeed * this.speedMultiplier);
+                                const currentAngle = Math.atan2(refBall.vel.y, refBall.vel.x);
+                                const newAngle = currentAngle + (Math.random() > 0.5 ? 0.35 : -0.35);
 
-                                const ball1 = this.createBallInstance(b.mesh.position.x, b.mesh.position.y, Math.cos(angle1) * spd, Math.sin(angle1) * spd);
-                                const ball2 = this.createBallInstance(b.mesh.position.x, b.mesh.position.y, Math.cos(angle2) * spd, Math.sin(angle2) * spd);
-                                this.balls.push(ball1, ball2);
-                            });
-                            showToast('🎱 BONUS M: Multi-Ball Activated!', 'fa-cubes');
+                                const extraBall = this.createBallInstance(
+                                    refBall.mesh.position.x, 
+                                    refBall.mesh.position.y, 
+                                    Math.cos(newAngle) * spd, 
+                                    Math.sin(newAngle) * spd
+                                );
+                                this.balls.push(extraBall);
+                            }
+                            showToast('🎱 BONUS M: 1 Extra Ball Added!', 'fa-cubes');
                         } else if (type === 'B') {
                             this.hasBarrier = true;
-                            if (this.barrierMesh) this.barrierMesh.visible = true;
+                            this.setHazardBarState(true); // Cambia sponda in ROSA!
                             this.setPaddleBonusState('BARRIER');
                             showToast('🛡️ BONUS B: Safety Barrier Deployed!', 'fa-shield-halved');
                         }
@@ -1298,7 +1302,7 @@
                     }
                 }
 
-                // --- BULLETS PHYSICS ---
+                // BULLETS PHYSICS
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
                     const bullet = this.bullets[i];
                     bullet.position.y += 4.5 * dt;
@@ -1354,7 +1358,7 @@
                     }
                 }
 
-                // --- BALLS PHYSICS (MULTI-BALL SUPPORT) ---
+                // BALLS PHYSICS
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
 
                 for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
@@ -1365,7 +1369,6 @@
                     bMesh.position.x += bVel.x * dt;
                     bMesh.position.y += bVel.y * dt;
 
-                    // Wall Collisions
                     if (bMesh.position.x - halfCube <= -halfW) {
                         bMesh.position.x = -halfW + halfCube; bVel.x = Math.abs(bVel.x); audio.wallHit();
                     } else if (bMesh.position.x + halfCube >= halfW) {
@@ -1376,23 +1379,21 @@
                         bMesh.position.y = FIELD.topY - halfCube; bVel.y = -Math.abs(bVel.y); audio.wallHit();
                     }
 
-                    // Bottom Hazard Line / Shield Check
+                    // BOTTOM HAZARD LINE & BARRIER CHECK
                     if (bMesh.position.y - halfCube <= FIELD.bottomY) {
                         if (this.hasBarrier) {
-                            // Barrier absorbs impact!
+                            // Barrier absorbs impact! Reset color back to standard red
                             bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
                             bVel.y = Math.abs(bVel.y);
                             this.hasBarrier = false;
-                            if (this.barrierMesh) this.barrierMesh.visible = false;
+                            this.setHazardBarState(false); // Torna ROSSO!
                             audio.shieldHit();
                             showToast('🛡️ Shield Absorbed Ball Impact!', 'fa-shield');
                         } else {
-                            // Remove fallen ball
                             this.fieldGroup.remove(bMesh);
                             bMesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
                             this.balls.splice(bIdx, 1);
 
-                            // If ALL balls are lost, lose a life
                             if (this.balls.length === 0) {
                                 this.lives--; audio.lifeLost();
                                 this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
@@ -1409,7 +1410,6 @@
                         }
                     }
 
-                    // Paddle Hit
                     const ballBox = new THREE.Box3().setFromObject(bMesh);
                     if (padBox.intersectsBox(ballBox) && bVel.y < 0) {
                         bVel.y = Math.abs(bVel.y);
@@ -1420,7 +1420,6 @@
                         audio.paddleHit();
                     }
 
-                    // Brick Hit
                     const bricks = this.bricksGroup.children;
                     for (let i = bricks.length - 1; i >= 0; i--) {
                         const b = bricks[i];
@@ -1489,19 +1488,29 @@
                                     }
                                 }
 
+                                // FIX MULTI-PLATFORM WEBXR THUMBSTICK AXES READING
                                 const axes = gamepad.axes;
                                 if (axes && axes.length >= 2) {
-                                    const axisX = axes[0];
-                                    const axisY = axes[1];
+                                    // Meta Quest Touch Controller Maps Thumbstick to axes[2] & axes[3]
+                                    let axisX = 0, axisY = 0;
+                                    if (axes.length >= 4) {
+                                        axisX = axes[2];
+                                        axisY = axes[3];
+                                    } else {
+                                        axisX = axes[0];
+                                        axisY = axes[1];
+                                    }
 
-                                    if (Math.abs(axisX) > 0.25) {
+                                    // Left / Right -> Field Scaling
+                                    if (Math.abs(axisX) > 0.20) {
                                         this.fieldScale += axisX * 0.8 * dt;
                                         this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
                                         this.fieldGroup.scale.setScalar(this.fieldScale);
                                         this.renderHUDCanvas();
                                     }
 
-                                    if (Math.abs(axisY) > 0.25) {
+                                    // Up / Down -> Vertical Position (Y)
+                                    if (Math.abs(axisY) > 0.20) {
                                         this.fieldPosY -= axisY * 0.8 * dt;
                                         this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
                                         this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
