@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.7.0</title>
+    <title>ARkanium v3.8.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.7.0
+                            v3.8.0
                         </span>
                     </div>
                 </div>
@@ -98,7 +98,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.7.0";
+        const VERSION = "v3.8.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -215,6 +215,24 @@
                 } catch (e) {}
             }
 
+            bombExplosion() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(160, now);
+                    osc.frequency.exponentialRampToValueAtTime(18, now + 0.95);
+                    gain.gain.setValueAtTime(0.75, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.95);
+                } catch (e) {}
+            }
+
             shieldHit() { this.playTone(620, 'sine', 0.2, 0.3); }
             speedBoost() { this.playTone(880, 'sine', 0.12, 0.2); }
             powerUpPickup() {
@@ -327,6 +345,47 @@
                 }
             }
 
+            fireworksExplode(position) {
+                const count = 100;
+                let spawned = 0;
+                const colors = [0x00f0ff, 0xff00d4, 0xffea00, 0x00ff88, 0xff2a55, 0xffffff];
+
+                for (let i = 0; i < this.pool.length && spawned < count; i++) {
+                    const p = this.pool[i];
+                    if (!p.active) {
+                        p.active = true;
+                        p.mesh.visible = true;
+                        p.mesh.position.copy(position);
+
+                        const colorHex = colors[Math.floor(Math.random() * colors.length)];
+                        p.mat.color.setHex(colorHex);
+                        p.mat.opacity = 1.0;
+                        
+                        const duration = 0.85 + Math.random() * 0.45;
+                        p.life = duration;
+                        p.maxLife = duration;
+
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos((Math.random() * 2) - 1);
+                        const speed = 2.2 + Math.random() * 4.2;
+
+                        p.velocity.set(
+                            speed * Math.sin(phi) * Math.cos(theta),
+                            speed * Math.sin(phi) * Math.sin(theta),
+                            speed * Math.cos(phi)
+                        );
+
+                        p.rotVelocity.set(
+                            (Math.random() - 0.5) * 20.0,
+                            (Math.random() - 0.5) * 20.0,
+                            (Math.random() - 0.5) * 20.0
+                        );
+
+                        spawned++;
+                    }
+                }
+            }
+
             update(dt) {
                 for (let i = 0; i < this.pool.length; i++) {
                     const p = this.pool[i];
@@ -342,7 +401,7 @@
                         p.mesh.rotation.y += p.rotVelocity.y * dt;
                         p.mesh.rotation.z += p.rotVelocity.z * dt;
 
-                        p.velocity.y -= 5.0 * dt;
+                        p.velocity.y -= 4.0 * dt;
 
                         const progress = p.life / p.maxLife;
                         p.mesh.scale.setScalar(Math.max(0.01, progress * 1.2));
@@ -823,9 +882,11 @@
                 }
             }
 
+            // LOBBY PANEL - Positioned just in front of field (Z = -1.65, Y = 1.30)
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
-                this.lobbyGroup.position.set(0, 1.6, -1.1);
+                this.lobbyGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
+
                 const canvas = document.createElement('canvas');
                 canvas.width = 1024; canvas.height = 512;
                 const ctx = canvas.getContext('2d');
@@ -841,13 +902,13 @@
                 ctx.fillText('3D Spatial Arcade', 512, 270);
 
                 const tex = new THREE.CanvasTexture(canvas);
-                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
                 this.lobbyGroup.add(planeMesh);
 
-                const btnGeo = new THREE.BoxGeometry(0.60, 0.14, 0.05);
+                const btnGeo = new THREE.BoxGeometry(0.48, 0.11, 0.04);
                 const btnMat = new THREE.MeshStandardMaterial({ color: 0x00d8ff, emissive: 0x0066cc, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.2 });
                 const startBtn = new THREE.Mesh(btnGeo, btnMat);
-                startBtn.position.set(0, -0.25, 0.04);
+                startBtn.position.set(0, -0.18, 0.04);
                 startBtn.userData = { action: 'START_GAME' };
 
                 const btnCanvas = document.createElement('canvas');
@@ -858,8 +919,8 @@
                 bCtx.fillText('🚀 START GAME', 256, 64);
 
                 const btnTex = new THREE.CanvasTexture(btnCanvas);
-                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.13), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
-                btnLabel.position.z = 0.028;
+                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.10), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
+                btnLabel.position.z = 0.024;
                 startBtn.add(btnLabel);
 
                 this.lobbyGroup.add(startBtn);
@@ -867,9 +928,10 @@
                 this.scene.add(this.lobbyGroup);
             }
 
+            // GAME OVER PANEL - Positioned just in front of field
             initGameOverPanel() {
                 this.gameOverGroup = new THREE.Group();
-                this.gameOverGroup.position.set(0, 1.6, -1.1);
+                this.gameOverGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
                 this.gameOverGroup.visible = false;
 
                 this.gameOverCanvas = document.createElement('canvas');
@@ -877,13 +939,13 @@
                 this.gameOverCtx = this.gameOverCanvas.getContext('2d');
 
                 this.gameOverTexture = new THREE.CanvasTexture(this.gameOverCanvas);
-                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), new THREE.MeshBasicMaterial({ map: this.gameOverTexture, transparent: true, side: THREE.DoubleSide }));
+                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshBasicMaterial({ map: this.gameOverTexture, transparent: true, side: THREE.DoubleSide }));
                 this.gameOverGroup.add(planeMesh);
 
-                const btnGeo = new THREE.BoxGeometry(0.60, 0.14, 0.05);
+                const btnGeo = new THREE.BoxGeometry(0.48, 0.11, 0.04);
                 const btnMat = new THREE.MeshStandardMaterial({ color: 0xff2a55, emissive: 0x990022, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.2 });
                 const restartBtn = new THREE.Mesh(btnGeo, btnMat);
-                restartBtn.position.set(0, -0.25, 0.04);
+                restartBtn.position.set(0, -0.18, 0.04);
                 restartBtn.userData = { action: 'START_GAME' };
 
                 const btnCanvas = document.createElement('canvas');
@@ -894,8 +956,8 @@
                 bCtx.fillText('🔄 PLAY AGAIN', 256, 64);
 
                 const btnTex = new THREE.CanvasTexture(btnCanvas);
-                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.13), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
-                btnLabel.position.z = 0.028;
+                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.10), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
+                btnLabel.position.z = 0.024;
                 restartBtn.add(btnLabel);
 
                 this.gameOverGroup.add(restartBtn);
@@ -919,10 +981,10 @@
                 this.gameOverTexture.needsUpdate = true;
             }
 
-            // LEVEL END SUMMARY PANEL
+            // LEVEL SUMMARY PANEL - Positioned just in front of field
             initLevelSummaryPanel() {
                 this.levelSummaryGroup = new THREE.Group();
-                this.levelSummaryGroup.position.set(0, 1.6, -1.1);
+                this.levelSummaryGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
                 this.levelSummaryGroup.visible = false;
 
                 this.levelSummaryCanvas = document.createElement('canvas');
@@ -930,13 +992,13 @@
                 this.levelSummaryCtx = this.levelSummaryCanvas.getContext('2d');
 
                 this.levelSummaryTexture = new THREE.CanvasTexture(this.levelSummaryCanvas);
-                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshBasicMaterial({ map: this.levelSummaryTexture, transparent: true, side: THREE.DoubleSide }));
+                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.68), new THREE.MeshBasicMaterial({ map: this.levelSummaryTexture, transparent: true, side: THREE.DoubleSide }));
                 this.levelSummaryGroup.add(planeMesh);
 
-                const btnGeo = new THREE.BoxGeometry(0.64, 0.14, 0.05);
+                const btnGeo = new THREE.BoxGeometry(0.48, 0.11, 0.04);
                 const btnMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x008844, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.2 });
                 const nextBtn = new THREE.Mesh(btnGeo, btnMat);
-                nextBtn.position.set(0, -0.36, 0.04);
+                nextBtn.position.set(0, -0.24, 0.04);
                 nextBtn.userData = { action: 'NEXT_LEVEL' };
 
                 const btnCanvas = document.createElement('canvas');
@@ -947,8 +1009,8 @@
                 bCtx.fillText('NEXT LEVEL 🚀', 256, 64);
 
                 const btnTex = new THREE.CanvasTexture(btnCanvas);
-                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.13), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
-                btnLabel.position.z = 0.028;
+                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.10), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
+                btnLabel.position.z = 0.024;
                 nextBtn.add(btnLabel);
 
                 this.levelSummaryGroup.add(nextBtn);
@@ -1009,6 +1071,17 @@
                 ctx.fillText(`Total Items Collected in Level: ${totalCollected}`, w / 2, 480);
 
                 this.levelSummaryTexture.needsUpdate = true;
+            }
+
+            handleLevelCompletedSequence(lastBrickPosition) {
+                this.isLevelTransitioning = true;
+                this.particlePool.fireworksExplode(lastBrickPosition);
+                audio.bombExplosion();
+
+                // Wait for fireworks animation (~1.2s) + 1.0s extra pause = 2.2s total delay
+                setTimeout(() => {
+                    this.showLevelSummary();
+                }, 2200);
             }
 
             showLevelSummary() {
@@ -1600,7 +1673,7 @@
                         if (brickBox.intersectsBox(bulletBox)) {
                             b.userData.active = false;
                             b.visible = false;
-                            this.particlePool.explode(b.position, b.userData.colorHex);
+                            const brickPos = b.position.clone();
 
                             if (this.isExplosiveActive) {
                                 this.triggerAreaExplosion(b.position);
@@ -1612,13 +1685,14 @@
                                 this.score += b.userData.points;
                             }
 
-                            audio.gunshot();
                             bulletHit = true;
 
                             if (this.getRemainingBricksCount() === 0) {
-                                this.showLevelSummary();
+                                this.handleLevelCompletedSequence(brickPos);
                                 return;
                             } else {
+                                audio.gunshot();
+                                this.particlePool.explode(brickPos, b.userData.colorHex);
                                 this.renderHUDCanvas();
                             }
                             break;
@@ -1699,7 +1773,7 @@
                         if (brickBox.intersectsBox(ballBox)) {
                             b.userData.active = false;
                             b.visible = false;
-                            this.particlePool.explode(b.position, b.userData.colorHex);
+                            const brickPos = b.position.clone();
 
                             bVel.y = -bVel.y;
 
@@ -1713,7 +1787,6 @@
                                 this.score += b.userData.points;
                             }
 
-                            audio.gunshot();
                             this.totalBricksHitInLife++;
 
                             if (this.totalBricksHitInLife % 5 === 0) {
@@ -1725,9 +1798,11 @@
                             }
 
                             if (this.getRemainingBricksCount() === 0) {
-                                this.showLevelSummary();
+                                this.handleLevelCompletedSequence(brickPos);
                                 return;
                             } else {
+                                audio.gunshot();
+                                this.particlePool.explode(brickPos, b.userData.colorHex);
                                 this.renderHUDCanvas();
                             }
                             break;
