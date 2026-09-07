@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.5</title>
+    <title>ARkanium v3.8.6</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.5
+                            v3.8.6
                         </span>
                     </div>
                 </div>
@@ -93,8 +93,8 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.5";
-        const MAX_LEVELS = 10;
+        const VERSION = "v3.8.6";
+        const MAX_LEVELS = 16;
         const INITIAL_PRNG_SEED = 20260906;
 
         function showToast(message, iconClass = "fa-circle-info") {
@@ -172,9 +172,21 @@
                     const now = this.ctx.currentTime;
                     const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-                    gain1.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
                     osc.connect(gain); gain.connect(this.ctx.destination);
                     osc.start(now); osc.stop(now + 0.3);
+                } catch (e) {}
+            }
+            // SUONO ESPLOSIONE PROFONDO DEDICATO A "X"
+            deepExplosion() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(90, now); osc.frequency.exponentialRampToValueAtTime(12, now + 0.45);
+                    gain.gain.setValueAtTime(0.75, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(now); osc.stop(now + 0.45);
                 } catch (e) {}
             }
             bombExplosion() {
@@ -230,7 +242,7 @@
             zPos: -1.80       
         };
 
-        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88, 0x9900ff];
+        const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff00, 0x9900ff];
 
         class QuestPyrotechnicParticlePool {
             constructor(parentGroup, maxParticles = 300) {
@@ -272,7 +284,7 @@
 
             fireworksExplode(position) {
                 const count = 80; let spawned = 0;
-                const colors = [0x00f0ff, 0xff00d4, 0xffea00, 0x00ff88, 0xff2a55, 0xffffff];
+                const colors = [0x00f0ff, 0xff00d4, 0xffea00, 0x00ff00, 0xff2a55, 0xffffff];
                 for (let i = 0; i < this.pool.length && spawned < count; i++) {
                     const p = this.pool[i];
                     if (!p.active) {
@@ -306,6 +318,68 @@
                         const progress = p.life / p.maxLife;
                         p.mesh.scale.setScalar(Math.max(0.01, progress * 1.2));
                         p.mat.opacity = progress;
+                    }
+                }
+            }
+        }
+
+        // CLASSE PER EFFETTO ICONE FLUTTUANTI "❤️" E "$" ONDEGGANTI
+        class FloatingIconPool {
+            constructor(parentGroup) {
+                this.parentGroup = parentGroup;
+                this.activeIcons = [];
+            }
+
+            spawn(position, symbolText, colorHexStr) {
+                for (let i = 0; i < 2; i++) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128; canvas.height = 128;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.font = 'bold 85px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = colorHexStr;
+                    ctx.shadowColor = colorHexStr;
+                    ctx.shadowBlur = 14;
+                    ctx.fillText(symbolText, 64, 64);
+
+                    const tex = new THREE.CanvasTexture(canvas);
+                    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1.0, side: THREE.DoubleSide });
+                    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.14), mat);
+
+                    const startOffsetX = (i === 0 ? -0.08 : 0.08) + (Math.random() - 0.5) * 0.04;
+                    mesh.position.set(position.x + startOffsetX, position.y + 0.06, 0.02);
+
+                    this.parentGroup.add(mesh);
+                    this.activeIcons.push({
+                        mesh: mesh,
+                        startX: position.x + startOffsetX,
+                        startY: position.y + 0.06,
+                        phase: Math.random() * Math.PI * 2 + (i * Math.PI),
+                        swaySpeed: 7.0 + Math.random() * 2.0,
+                        swayAmp: 0.07 + Math.random() * 0.03,
+                        life: 1.4,
+                        maxLife: 1.4
+                    });
+                }
+            }
+
+            update(dt) {
+                for (let i = this.activeIcons.length - 1; i >= 0; i--) {
+                    const icon = this.activeIcons[i];
+                    icon.life -= dt;
+                    if (icon.life <= 0) {
+                        this.parentGroup.remove(icon.mesh);
+                        icon.mesh.geometry.dispose();
+                        if (icon.mesh.material.map) icon.mesh.material.map.dispose();
+                        icon.mesh.material.dispose();
+                        this.activeIcons.splice(i, 1);
+                    } else {
+                        const progress = 1.0 - (icon.life / icon.maxLife);
+                        icon.mesh.position.y = icon.startY + progress * 0.50;
+                        icon.mesh.position.x = icon.startX + Math.sin((progress * icon.swaySpeed) + icon.phase) * icon.swayAmp;
+                        icon.mesh.material.opacity = Math.max(0, icon.life / icon.maxLife);
                     }
                 }
             }
@@ -383,9 +457,13 @@
                 this.initLobbyPanel();
                 this.initGameOverPanel();
                 this.initLevelSummaryPanel();
+                this.initVictoryPanel();
                 this.initDebugHUD();
                 this.initBonusLegendHUD();
+                
                 this.particlePool = new QuestPyrotechnicParticlePool(this.fieldGroup);
+                this.floatingIconPool = new FloatingIconPool(this.fieldGroup);
+
                 this.initXRControllers();
                 this.initWebXRLauncher();
 
@@ -459,7 +537,7 @@
                 this.initInGameStats();
             }
 
-            // LEVEL HEADER CENTRATO APPENA SOPRA AL CAMPO DI GIOCO
+            // SCRITTA DEL LIVELLO INGRANDITA E CENTRATA SOPRA AL CAMPO
             initLevelHeader() {
                 this.levelCanvas = document.createElement('canvas');
                 this.levelCanvas.width = 1024;
@@ -467,10 +545,10 @@
                 this.levelCtx = this.levelCanvas.getContext('2d');
                 this.levelTexture = new THREE.CanvasTexture(this.levelCanvas);
 
-                const geo = new THREE.PlaneGeometry(0.85, 0.11);
+                const geo = new THREE.PlaneGeometry(1.0, 0.14);
                 const mat = new THREE.MeshBasicMaterial({ map: this.levelTexture, transparent: true });
                 this.levelHeaderMesh = new THREE.Mesh(geo, mat);
-                this.levelHeaderMesh.position.set(0, FIELD.topY + 0.08, 0);
+                this.levelHeaderMesh.position.set(0, FIELD.topY + 0.09, 0);
                 this.fieldGroup.add(this.levelHeaderMesh);
                 this.updateLevelHeader();
             }
@@ -482,15 +560,16 @@
 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.font = 'bold 64px monospace';
+                ctx.font = 'bold 84px monospace';
                 ctx.fillStyle = '#00f0ff';
                 ctx.shadowColor = '#00f0ff';
-                ctx.shadowBlur = 16;
+                ctx.shadowBlur = 20;
                 ctx.fillText(`LEVEL ${this.level}`, 512, 64);
 
                 this.levelTexture.needsUpdate = true;
             }
 
+            // SCRITTE LIVES E SCORE INGRANDITE
             initInGameStats() {
                 this.inGameStatsCanvas = document.createElement('canvas');
                 this.inGameStatsCanvas.width = 2048;
@@ -526,14 +605,14 @@
 
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
-                ctx.font = 'bold 38px sans-serif';
+                ctx.font = 'bold 48px sans-serif';
                 ctx.fillStyle = '#ff2a55';
                 const hearts = '❤️ '.repeat(Math.max(0, this.lives));
                 ctx.fillText(`LIVES: ${hearts}`, 40, 64);
                 
                 ctx.textAlign = 'right';
                 ctx.fillStyle = '#00ff88';
-                ctx.font = 'bold 52px monospace';
+                ctx.font = 'bold 62px monospace';
                 ctx.fillText(`SCORE: ${this.score.toString().padStart(6, '0')}`, 2008, 64);
                 
                 this.inGameStatsTexture.needsUpdate = true;
@@ -677,16 +756,11 @@
                 return { mesh, vel: new THREE.Vector3(velX, velY, 0) };
             }
 
+            // GESTIONE COLORE RACCHETTA: SOLO BONUS A TEMPO (F, X, B)
             updatePaddleVisuals(latestType) {
                 if (latestType === 'FIRE') {
                     this.paddleMat.color.setHex(0xff6600);
                     this.paddleMat.emissive.setHex(0x993300);
-                } else if (latestType === 'SPEED') {
-                    this.paddleMat.color.setHex(0x00f0ff);
-                    this.paddleMat.emissive.setHex(0x0077aa);
-                } else if (latestType === 'LIFE') {
-                    this.paddleMat.color.setHex(0x00ff88);
-                    this.paddleMat.emissive.setHex(0x008844);
                 } else if (latestType === 'EXPLOSIVE') {
                     this.paddleMat.color.setHex(0xff0000);
                     this.paddleMat.emissive.setHex(0x990000);
@@ -706,6 +780,7 @@
                 }
             }
 
+            // VERDE PIENO "#00ff00" PER "L"
             spawnPowerUp(position, type) {
                 if (!type) return;
 
@@ -719,12 +794,12 @@
                 else if (type === 'X') colorHex = '#ff0000';
                 else if (type === 'B') colorHex = '#ff007f';
                 else if (type === 'S') colorHex = '#00f0ff';
-                else if (type === 'L') colorHex = '#00ff88';
+                else if (type === 'L') colorHex = '#00ff00';
                 else if (type === 'M') colorHex = '#a855f7';
 
                 ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 128, 128);
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 118, 118);
-                ctx.fillStyle = (type === '$') ? '#000000' : '#ffffff'; 
+                ctx.fillStyle = (type === '$' || type === 'L') ? '#000000' : '#ffffff'; 
                 ctx.font = 'bold 85px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(type, 64, 64);
 
@@ -761,7 +836,7 @@
             }
 
             triggerAreaExplosion(centerPos) {
-                audio.explosion();
+                audio.deepExplosion();
                 const radius = 0.22;
                 const bricks = this.bricksGroup.children;
 
@@ -875,7 +950,7 @@
                 ctx.font = 'black 82px sans-serif'; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 28;
                 ctx.fillText(GAME_TITLE, 512, 190);
                 ctx.font = 'bold 32px sans-serif'; ctx.fillStyle = '#ff00d4'; ctx.shadowColor = '#ff00d4'; ctx.shadowBlur = 15;
-                ctx.fillText('3D Spatial Arcade', 512, 270);
+                ctx.fillText('3D Spatial Arcade - 16 Levels', 512, 270);
 
                 const tex = new THREE.CanvasTexture(canvas);
                 const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
@@ -1018,7 +1093,7 @@
                 ctx.fillText('BONUSES COLLECTED:', 90, 295);
 
                 const bonusKeys = ['F', '$', 'X', 'B', 'M', 'S', 'L'];
-                const bonusColors = { 'F': '#ff6600', '$': '#ffea00', 'X': '#ff0000', 'B': '#ff007f', 'M': '#a855f7', 'S': '#00f0ff', 'L': '#00ff88' };
+                const bonusColors = { 'F': '#ff6600', '$': '#ffea00', 'X': '#ff0000', 'B': '#ff007f', 'M': '#a855f7', 'S': '#00f0ff', 'L': '#00ff00' };
                 let totalCollected = 0;
 
                 const startX = 90; const startY = 325; const boxW = 110; const gapX = 20;
@@ -1032,7 +1107,7 @@
                     ctx.beginPath(); ctx.roundRect(x, startY, boxW, boxW, 14); ctx.fill();
                     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
 
-                    ctx.fillStyle = (key === '$') ? '#000000' : '#ffffff';
+                    ctx.fillStyle = (key === '$' || key === 'L') ? '#000000' : '#ffffff';
                     ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText(key, x + boxW / 2, startY + boxW / 2 - 10);
 
@@ -1045,6 +1120,71 @@
                 ctx.fillText(`Total Items Collected in Level: ${totalCollected}`, w / 2, 480);
 
                 this.levelSummaryTexture.needsUpdate = true;
+            }
+
+            // PANNELLO CONGRATULAZIONI FINALE (COMPLETAMENTO 16 LIVELLI)
+            initVictoryPanel() {
+                this.victoryGroup = new THREE.Group();
+                this.victoryGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
+                this.victoryGroup.visible = false;
+
+                this.victoryCanvas = document.createElement('canvas');
+                this.victoryCanvas.width = 1024; this.victoryCanvas.height = 640;
+                this.victoryCtx = this.victoryCanvas.getContext('2d');
+
+                this.victoryTexture = new THREE.CanvasTexture(this.victoryCanvas);
+                const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.68), new THREE.MeshBasicMaterial({ map: this.victoryTexture, transparent: true, side: THREE.DoubleSide }));
+                this.victoryGroup.add(planeMesh);
+
+                const btnGeo = new THREE.BoxGeometry(0.52, 0.12, 0.04);
+                const btnMat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, emissive: 0x0088cc, emissiveIntensity: 0.6, metalness: 0.8, roughness: 0.2 });
+                const lobbyBtn = new THREE.Mesh(btnGeo, btnMat);
+                lobbyBtn.position.set(0, -0.23, 0.04);
+                lobbyBtn.userData = { action: 'EXIT_GAME' };
+
+                const btnCanvas = document.createElement('canvas');
+                btnCanvas.width = 512; btnCanvas.height = 128;
+                const bCtx = btnCanvas.getContext('2d');
+                bCtx.fillStyle = '#00f0ff'; bCtx.fillRect(0, 0, 512, 128);
+                bCtx.fillStyle = '#000000'; bCtx.font = 'bold 38px sans-serif'; bCtx.textAlign = 'center'; bCtx.textBaseline = 'middle';
+                bCtx.fillText('RETURN TO LOBBY 🏆', 256, 64);
+
+                const btnTex = new THREE.CanvasTexture(btnCanvas);
+                const btnLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.50, 0.11), new THREE.MeshBasicMaterial({ map: btnTex, transparent: true }));
+                btnLabel.position.z = 0.024;
+                lobbyBtn.add(btnLabel);
+
+                this.victoryGroup.add(lobbyBtn);
+                this.interactiveObjects.push(lobbyBtn);
+                this.scene.add(this.victoryGroup);
+            }
+
+            renderVictoryCanvas() {
+                if (!this.victoryCtx) return;
+                const ctx = this.victoryCtx;
+                const w = 1024; const h = 640;
+                ctx.clearRect(0, 0, w, h);
+
+                const grad = ctx.createLinearGradient(0, 0, w, h);
+                grad.addColorStop(0, '#1a0f2e'); grad.addColorStop(0.5, '#2e0a24'); grad.addColorStop(1, '#052a38');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = '#ffea00'; ctx.lineWidth = 12; ctx.strokeRect(16, 16, w - 32, h - 32);
+
+                ctx.textAlign = 'center'; ctx.fillStyle = '#ffea00'; ctx.font = 'black 68px sans-serif'; ctx.shadowColor = '#ffea00'; ctx.shadowBlur = 28;
+                ctx.fillText('CONGRATULATIONS!', w / 2, 110);
+
+                ctx.font = 'bold 36px sans-serif'; ctx.fillStyle = '#00f0ff'; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 16;
+                ctx.fillText('YOU HAVE CONQUERED ALL 16 LEVELS!', w / 2, 190);
+
+                ctx.strokeStyle = 'rgba(255, 234, 0, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(60, 230); ctx.lineTo(w - 60, 230); ctx.stroke();
+
+                ctx.shadowBlur = 0; ctx.font = 'bold 48px monospace'; ctx.fillStyle = '#00ff88';
+                ctx.fillText(`FINAL SCORE: ${this.score.toString().padStart(6, '0')}`, w / 2, 320);
+
+                ctx.font = '28px sans-serif'; ctx.fillStyle = '#e2e8f0';
+                ctx.fillText('You are a true ARkanium Master!', w / 2, 390);
+
+                this.victoryTexture.needsUpdate = true;
             }
 
             handleLevelCompletedSequence(lastBrickPosition) {
@@ -1122,7 +1262,6 @@
                 this.renderHUDCanvas();
             }
 
-            // RIMOSSE LE VOCI: GAME STATE, BRICKS LEFT, ACTIVE BALLS, ACTIVE BUFFS, CURRENT LEVEL
             renderHUDCanvas() {
                 this.updateInGameStats();
 
@@ -1191,7 +1330,7 @@
                     { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: '10s safety barrier. Flashes during final 3s.' },
                     { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Instantly spawns 1 extra ball into play.' },
                     { tag: 'S', name: 'SLOW DOWN', color: '#00f0ff', desc: 'Reduces ball speed for better precision.' },
-                    { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Instantly grants +1 extra life to reserve.' }
+                    { tag: 'L', name: 'EXTRA LIFE', color: '#00ff00', desc: 'Instantly grants +1 extra life to reserve.' }
                 ];
 
                 const startY = 160;
@@ -1204,7 +1343,7 @@
                     ctx.beginPath(); ctx.roundRect(60, y, 90, 90, 16); ctx.fill();
                     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
 
-                    ctx.fillStyle = (b.tag === '$') ? '#000000' : '#ffffff';
+                    ctx.fillStyle = (b.tag === '$' || b.tag === 'L') ? '#000000' : '#ffffff';
                     ctx.font = 'bold 62px sans-serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
@@ -1401,6 +1540,7 @@
                 this.lobbyGroup.visible = false;
                 this.gameOverGroup.visible = false;
                 this.levelSummaryGroup.visible = false;
+                this.victoryGroup.visible = false;
 
                 this.buildBricksForLevel(this.level);
                 this.resetBallAndPaddle();
@@ -1415,9 +1555,12 @@
 
                 this.level++;
                 if (this.level > MAX_LEVELS) {
-                    this.gameState = 'VICTORY'; audio.gameWin();
-                    showToast('VICTORY! All 10 levels completed!', 'fa-trophy');
-                    this.returnToLobby();
+                    this.gameState = 'VICTORY';
+                    audio.gameWin();
+                    this.renderVictoryCanvas();
+                    this.levelSummaryGroup.visible = false;
+                    this.victoryGroup.visible = true;
+                    showToast('VICTORY! All 16 levels completed!', 'fa-trophy');
                 } else {
                     this.gameState = 'PLAYING';
                     this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
@@ -1443,6 +1586,7 @@
                 this.lobbyGroup.visible = true;
                 this.gameOverGroup.visible = false;
                 this.levelSummaryGroup.visible = false;
+                this.victoryGroup.visible = false;
                 this.resetBallAndPaddle();
                 this.updateLevelHeader();
                 this.renderHUDCanvas();
@@ -1457,6 +1601,7 @@
                 showToast('GAME OVER! No lives remaining.', 'fa-skull');
                 this.lobbyGroup.visible = false;
                 this.levelSummaryGroup.visible = false;
+                this.victoryGroup.visible = false;
                 this.renderGameOverCanvas();
                 this.gameOverGroup.visible = true;
                 this.resetBallAndPaddle();
@@ -1521,6 +1666,7 @@
                 const padMinY = padY - 0.03;
                 const padMaxY = padY + 0.03;
 
+                // --- GESTIONE RACCOLTA BONUS ---
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1539,9 +1685,9 @@
 
                         if (type === '$') {
                             this.score += 300;
+                            this.floatingIconPool.spawn(this.paddleMesh.position, '$', '#ffea00');
                             showToast('💰 BONUS $: +300 Points!', 'fa-coins');
                         } else if (type === 'S') {
-                            this.updatePaddleVisuals('SPEED'); 
                             const speedReductionFactor = Math.pow(1.05, 3);
                             this.speedMultiplier = Math.max(1.0, this.speedMultiplier / speedReductionFactor);
                             this.balls.forEach(b => {
@@ -1554,8 +1700,8 @@
                             this.updatePaddleVisuals('FIRE');
                             showToast('🔥 BONUS F: Fire Mode Active!', 'fa-fire');
                         } else if (type === 'L') {
-                            this.updatePaddleVisuals('LIFE');
                             this.lives++;
+                            this.floatingIconPool.spawn(this.paddleMesh.position, '❤️', '#ff2a55');
                             showToast('❤️ BONUS L: Extra Life Added!', 'fa-heart');
                         } else if (type === 'X') {
                             this.explosiveTimer = 8.0;
@@ -1654,8 +1800,10 @@
                                 this.handleLevelCompletedSequence(brickPos);
                                 return; 
                             } else {
-                                audio.gunshot();
-                                if (!this.isExplosiveActive) {
+                                if (this.isExplosiveActive) {
+                                    audio.deepExplosion();
+                                } else {
+                                    audio.gunshot();
                                     this.particlePool.explode(brickPos, b.userData.colorHex);
                                 }
                                 this.updateInGameStats();
@@ -1775,8 +1923,10 @@
                                 this.handleLevelCompletedSequence(brickPos);
                                 return; 
                             } else {
-                                audio.gunshot();
-                                if (!this.isExplosiveActive) {
+                                if (this.isExplosiveActive) {
+                                    audio.deepExplosion();
+                                } else {
+                                    audio.gunshot();
                                     this.particlePool.explode(brickPos, b.userData.colorHex);
                                 }
                                 this.updateInGameStats();
@@ -1892,6 +2042,7 @@
                 this.updatePaddleAndControllers(dt);
                 this.updatePhysics(dt);
                 this.particlePool.update(dt);
+                this.floatingIconPool.update(dt);
                 this.renderer.render(this.scene, this.camera);
             }
         }
