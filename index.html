@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.4.0</title>
+    <title>ARkanium v3.5.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.4.0
+                            v3.5.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.4.0";
+        const VERSION = "v3.5.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -173,9 +173,9 @@
 
             playArpeggioNote(step) {
                 if (this.muted || !this.ctx) return;
-                // Iconic Space Invaders 4-note descending bass loop (C2, B1, Bb1, A1)
-                const freqs = [104.65, 98.00, 92.50, 87.31];
-                this.playTone(freqs[step % 4], 'sawtooth', 0.065, 0.18);
+                // 8-note arpeggio loop: 4 notes ascending (C3, E3, G3, C4), 4 notes descending (B3, G3, E3, D3)
+                const freqs = [130.81, 164.81, 196.00, 261.63, 246.94, 196.00, 164.81, 146.83];
+                this.playTone(freqs[step % 8], 'sawtooth', 0.065, 0.18);
             }
 
             paddleHit() { this.playTone(320, 'triangle', 0.09, 0.22); }
@@ -414,10 +414,10 @@
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
 
-                // Space Invaders Audio Arpeggio Loop State
+                // 8-Note Audio Arpeggio Loop State
                 this.arpeggioTimer = 0;
                 this.arpeggioStep = 0;
-                this.arpeggioBaseInterval = 0.48; // Base 480ms per step at 1.0x speed
+                this.arpeggioBaseInterval = 0.32; // Fast & crisp 8-note step timing
 
                 // Power-up Cumulative States
                 this.isFireActive = false;
@@ -425,6 +425,7 @@
                 this.isExplosiveActive = false;
                 this.explosiveTimer = 0;
                 this.hasBarrier = false;
+                this.barrierTimer = 0;
 
                 this.balls = [];
                 this.activePowerUps = [];
@@ -831,6 +832,7 @@
                 this.explosiveTimer = 0;
                 this.isExplosiveActive = false;
                 this.hasBarrier = false;
+                this.barrierTimer = 0;
                 this.setHazardBarState(false);
                 this.refreshPaddleVisuals();
             }
@@ -1033,7 +1035,7 @@
                 let activeBuffs = [];
                 if (this.isFireActive) activeBuffs.push(`🔥 F(${this.fireTimer.toFixed(1)}s)`);
                 if (this.isExplosiveActive) activeBuffs.push(`💥 X(${this.explosiveTimer.toFixed(1)}s)`);
-                if (this.hasBarrier) activeBuffs.push(`🛡️ B`);
+                if (this.hasBarrier) activeBuffs.push(`🛡️ B(${this.barrierTimer.toFixed(1)}s)`);
                 let bonusStatus = activeBuffs.length > 0 ? activeBuffs.join(' ') : 'NONE';
 
                 ctx.fillStyle = '#ffea00'; ctx.fillText(`ACTIVE BUFFS : ${bonusStatus}`, 80, 550);
@@ -1089,7 +1091,7 @@
                 const bonuses = [
                     { tag: 'F', name: 'FIRE MODE', color: '#ff6600', desc: 'Dual laser cannons. Pull trigger to fire lasers.' },
                     { tag: 'X', name: 'EXPLOSIVE', color: '#ff0000', desc: 'Explosive ball: destroys all adjacent bricks on hit.' },
-                    { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: 'Deploys pink bottom safety barrier (1-time use).' },
+                    { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: '10s safety barrier. Flashes during final 3s.' },
                     { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Instantly spawns 1 extra ball into play.' },
                     { tag: 'S', name: 'SLOW DOWN', color: '#00f0ff', desc: 'Reduces ball speed for better precision.' },
                     { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Instantly grants +1 extra life to reserve.' }
@@ -1353,13 +1355,13 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
-                // Space Invaders Audio Arpeggio Loop (Dynamic BPM)
+                // 8-Note Audio Arpeggio Loop (Dynamic BPM)
                 this.arpeggioTimer += dt;
-                const currentInterval = Math.max(0.09, this.arpeggioBaseInterval / this.speedMultiplier);
+                const currentInterval = Math.max(0.08, this.arpeggioBaseInterval / this.speedMultiplier);
                 if (this.arpeggioTimer >= currentInterval) {
                     this.arpeggioTimer = 0;
                     audio.playArpeggioNote(this.arpeggioStep);
-                    this.arpeggioStep = (this.arpeggioStep + 1) % 4;
+                    this.arpeggioStep = (this.arpeggioStep + 1) % 8;
                 }
 
                 // Independent Fire Timer
@@ -1386,6 +1388,25 @@
                         });
                         this.refreshPaddleVisuals();
                         showToast('Explosive Mode Expired', 'fa-bomb');
+                    }
+                    this.renderHUDCanvas();
+                }
+
+                // Independent 10s Barrier Shield Timer & Flashing
+                if (this.hasBarrier) {
+                    this.barrierTimer -= dt;
+                    if (this.barrierTimer <= 0) {
+                        this.barrierTimer = 0;
+                        this.hasBarrier = false;
+                        this.setHazardBarState(false);
+                        this.refreshPaddleVisuals();
+                        showToast('Barrier Shield Expired', 'fa-shield-halved');
+                    } else if (this.barrierTimer <= 3.0) {
+                        // Flashing warning effect during final 3 seconds
+                        const flash = Math.floor(this.barrierTimer * 8) % 2 === 0;
+                        this.setHazardBarState(flash);
+                    } else {
+                        this.setHazardBarState(true);
                     }
                     this.renderHUDCanvas();
                 }
@@ -1447,9 +1468,10 @@
                             showToast('🎱 BONUS M: 1 Extra Ball Added!', 'fa-cubes');
                         } else if (type === 'B') {
                             this.hasBarrier = true;
+                            this.barrierTimer = 10.0;
                             this.setHazardBarState(true);
                             this.updatePaddleVisuals('BARRIER');
-                            showToast('🛡️ BONUS B: Safety Barrier Deployed!', 'fa-shield-halved');
+                            showToast('🛡️ BONUS B: 10s Safety Barrier Active!', 'fa-shield-halved');
                         }
 
                         this.fieldGroup.remove(p);
@@ -1547,9 +1569,6 @@
                         if (this.hasBarrier) {
                             bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
                             bVel.y = Math.abs(bVel.y);
-                            this.hasBarrier = false;
-                            this.setHazardBarState(false);
-                            this.refreshPaddleVisuals();
                             audio.shieldHit();
                             showToast('🛡️ Shield Absorbed Ball Impact!', 'fa-shield');
                         } else {
@@ -1582,7 +1601,6 @@
                         bVel.normalize().multiplyScalar(currentSpeed);
                         audio.paddleHit();
 
-                        // TRIGGER PADDLE SPARKS PROPORTIONAL TO BALL SPEED
                         const sparkImpactPos = new THREE.Vector3(bMesh.position.x, this.paddleMesh.position.y + 0.03, 0);
                         this.particlePool.paddleSparks(sparkImpactPos, this.speedMultiplier);
                     }
