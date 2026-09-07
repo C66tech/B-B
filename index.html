@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.5.0</title>
+    <title>ARkanium v3.6.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,10 +75,9 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.5.0
+                            v3.6.0
                         </span>
                     </div>
-                    <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
                 </div>
             </div>
 
@@ -99,7 +98,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.5.0";
+        const VERSION = "v3.6.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -329,43 +328,6 @@
                 }
             }
 
-            paddleSparks(position, speedMult) {
-                const count = Math.min(75, Math.floor(18 * speedMult));
-                let spawned = 0;
-
-                for (let i = 0; i < this.pool.length && spawned < count; i++) {
-                    const p = this.pool[i];
-                    if (!p.active) {
-                        p.active = true;
-                        p.mesh.visible = true;
-                        p.mesh.position.copy(position);
-
-                        const sparkColor = Math.random() < 0.4 ? 0xffea00 : (Math.random() < 0.7 ? 0x00f0ff : 0xffffff);
-                        p.mat.color.setHex(sparkColor);
-                        p.mat.opacity = 1.0;
-                        
-                        const duration = 0.15 + Math.random() * 0.25;
-                        p.life = duration;
-                        p.maxLife = duration;
-
-                        const baseSpeed = 2.2 * Math.sqrt(speedMult);
-                        p.velocity.set(
-                            (Math.random() - 0.5) * baseSpeed * 2.2,
-                            (Math.random() * 0.8 + 0.3) * baseSpeed * 2.8,
-                            (Math.random() - 0.5) * baseSpeed * 1.5
-                        );
-
-                        p.rotVelocity.set(
-                            (Math.random() - 0.5) * 25.0,
-                            (Math.random() - 0.5) * 25.0,
-                            (Math.random() - 0.5) * 25.0
-                        );
-
-                        spawned++;
-                    }
-                }
-            }
-
             update(dt) {
                 for (let i = 0; i < this.pool.length; i++) {
                     const p = this.pool[i];
@@ -417,7 +379,7 @@
                 // 8-Note Audio Arpeggio Loop State
                 this.arpeggioTimer = 0;
                 this.arpeggioStep = 0;
-                this.arpeggioBaseInterval = 0.32; // Fast & crisp 8-note step timing
+                this.arpeggioBaseInterval = 0.32;
 
                 // Power-up Cumulative States
                 this.isFireActive = false;
@@ -635,12 +597,13 @@
                     const roll = this.prng.next();
                     let bonusType = 'F';
 
-                    if (roll < 0.10) bonusType = 'L';      // Extra Life
-                    else if (roll < 0.25) bonusType = 'M'; // Multi-Ball
-                    else if (roll < 0.40) bonusType = 'X'; // Explosive Ball
-                    else if (roll < 0.55) bonusType = 'B'; // Barrier Shield
-                    else if (roll < 0.75) bonusType = 'S'; // Speed Slow
-                    else bonusType = 'F';                  // Fire Mode
+                    if (roll < 0.10) bonusType = 'L';       // Extra Life
+                    else if (roll < 0.22) bonusType = '$';  // +300 Cash Bonus
+                    else if (roll < 0.36) bonusType = 'M';  // Multi-Ball
+                    else if (roll < 0.50) bonusType = 'X';  // Explosive Ball
+                    else if (roll < 0.64) bonusType = 'B';  // Barrier Shield
+                    else if (roll < 0.78) bonusType = 'S';  // Speed Slow
+                    else bonusType = 'F';                   // Fire Mode
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -714,6 +677,7 @@
 
                 let colorHex = '#ff6600';
                 if (type === 'F') colorHex = '#ff6600';
+                else if (type === '$') colorHex = '#ffea00';
                 else if (type === 'X') colorHex = '#ff0000';
                 else if (type === 'B') colorHex = '#ff007f';
                 else if (type === 'S') colorHex = '#00f0ff';
@@ -722,7 +686,8 @@
 
                 ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 128, 128);
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 118, 118);
-                ctx.fillStyle = '#ffffff'; ctx.font = 'bold 85px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = (type === '$') ? '#000000' : '#ffffff'; 
+                ctx.font = 'bold 85px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(type, 64, 64);
 
                 const tex = new THREE.CanvasTexture(c);
@@ -1013,7 +978,8 @@
                 ctx.clearRect(0, 0, w, h);
                 ctx.fillStyle = 'rgba(10, 16, 32, 0.94)'; ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 8;
                 ctx.beginPath(); ctx.roundRect(20, 20, w - 40, h - 40, 28); ctx.fill(); ctx.stroke();
-                ctx.textAlign = 'center'; ctx.fillStyle = '#00f0ff'; ctx.font = 'bold 44px sans-serif'; ctx.fillText(`${GAME_TITLE} - DEBUG HUD`, w / 2, 80);
+                ctx.textAlign = 'center'; ctx.fillStyle = '#00f0ff'; ctx.font = 'bold 44px sans-serif'; 
+                ctx.fillText(GAME_TITLE, w / 2, 80);
                 ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ff00d4'; ctx.fillText(`VERSION: ${VERSION}`, w / 2, 125);
                 ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
                 ctx.textAlign = 'left'; ctx.font = 'bold 30px monospace';
@@ -1090,6 +1056,7 @@
 
                 const bonuses = [
                     { tag: 'F', name: 'FIRE MODE', color: '#ff6600', desc: 'Dual laser cannons. Pull trigger to fire lasers.' },
+                    { tag: '$', name: 'BONUS CASH', color: '#ffea00', desc: 'Instantly grants +300 bonus points.' },
                     { tag: 'X', name: 'EXPLOSIVE', color: '#ff0000', desc: 'Explosive ball: destroys all adjacent bricks on hit.' },
                     { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: '10s safety barrier. Flashes during final 3s.' },
                     { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Instantly spawns 1 extra ball into play.' },
@@ -1097,35 +1064,35 @@
                     { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Instantly grants +1 extra life to reserve.' }
                 ];
 
-                const startY = 180;
-                const itemH = 160;
+                const startY = 160;
+                const itemH = 145;
 
                 bonuses.forEach((b, idx) => {
                     const y = startY + (idx * itemH);
 
                     ctx.fillStyle = b.color;
-                    ctx.beginPath(); ctx.roundRect(60, y, 100, 100, 18); ctx.fill();
+                    ctx.beginPath(); ctx.roundRect(60, y, 90, 90, 16); ctx.fill();
                     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
 
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 68px sans-serif';
+                    ctx.fillStyle = (b.tag === '$') ? '#000000' : '#ffffff';
+                    ctx.font = 'bold 62px sans-serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(b.tag, 110, y + 50);
+                    ctx.fillText(b.tag, 105, y + 45);
 
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'alphabetic';
                     ctx.fillStyle = b.color;
-                    ctx.font = 'bold 32px sans-serif';
-                    ctx.fillText(b.name, 185, y + 42);
+                    ctx.font = 'bold 30px sans-serif';
+                    ctx.fillText(b.name, 175, y + 38);
 
                     ctx.fillStyle = '#cbd5e1';
-                    ctx.font = '22px sans-serif';
-                    ctx.fillText(b.desc, 185, y + 80);
+                    ctx.font = '21px sans-serif';
+                    ctx.fillText(b.desc, 175, y + 74);
                 });
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText('💡 Catch falling power-up gems with your paddle', w / 2, 1200);
+                ctx.fillText('💡 Catch falling power-up gems with your paddle', w / 2, 1220);
 
                 this.rightHudTexture.needsUpdate = true;
             }
@@ -1402,7 +1369,6 @@
                         this.refreshPaddleVisuals();
                         showToast('Barrier Shield Expired', 'fa-shield-halved');
                     } else if (this.barrierTimer <= 3.0) {
-                        // Flashing warning effect during final 3 seconds
                         const flash = Math.floor(this.barrierTimer * 8) % 2 === 0;
                         this.setHazardBarState(flash);
                     } else {
@@ -1424,7 +1390,10 @@
                         audio.powerUpPickup();
                         const type = p.userData.type;
 
-                        if (type === 'S') {
+                        if (type === '$') {
+                            this.score += 300;
+                            showToast('💰 BONUS $: +300 Points!', 'fa-coins');
+                        } else if (type === 'S') {
                             this.updatePaddleVisuals('SPEED'); 
                             const speedReductionFactor = Math.pow(1.05, 3);
                             this.speedMultiplier = Math.max(1.0, this.speedMultiplier / speedReductionFactor);
@@ -1600,9 +1569,6 @@
                         bVel.x = hitOffset * (currentSpeed * 0.85);
                         bVel.normalize().multiplyScalar(currentSpeed);
                         audio.paddleHit();
-
-                        const sparkImpactPos = new THREE.Vector3(bMesh.position.x, this.paddleMesh.position.y + 0.03, 0);
-                        this.particlePool.paddleSparks(sparkImpactPos, this.speedMultiplier);
                     }
 
                     const bricks = this.bricksGroup.children;
