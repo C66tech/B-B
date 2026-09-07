@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.0</title>
+    <title>ARkanium v3.8.1</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.0
+                            v3.8.1
                         </span>
                     </div>
                 </div>
@@ -96,9 +96,8 @@
     </div>
 
     <script>
-        // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.0";
+        const VERSION = "v3.8.1";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -426,7 +425,6 @@
                 this.paddleWidth = 0.38 * 0.90; 
                 this.paddleX = 0;
 
-                // Level tracking variables
                 this.levelStartScore = 0;
                 this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
 
@@ -438,12 +436,10 @@
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
 
-                // 8-Note Audio Arpeggio Loop State
                 this.arpeggioTimer = 0;
                 this.arpeggioStep = 0;
                 this.arpeggioBaseInterval = 0.32;
 
-                // Power-up Cumulative States
                 this.isFireActive = false;
                 this.fireTimer = 0;
                 this.isExplosiveActive = false;
@@ -462,7 +458,6 @@
                 this.showLasersInGame = false;
                 this.prevButtonBState = false;
 
-                // Multi-HUD Dragging State
                 this.isDraggingHUD = false;
                 this.hudDragController = null;
                 this.hudDragTargetGroup = null;
@@ -660,13 +655,13 @@
                     const roll = this.prng.next();
                     let bonusType = 'F';
 
-                    if (roll < 0.10) bonusType = 'L';       // Extra Life
-                    else if (roll < 0.22) bonusType = '$';  // +300 Cash Bonus
-                    else if (roll < 0.36) bonusType = 'M';  // Multi-Ball
-                    else if (roll < 0.50) bonusType = 'X';  // Explosive Ball
-                    else if (roll < 0.64) bonusType = 'B';  // Barrier Shield
-                    else if (roll < 0.78) bonusType = 'S';  // Speed Slow
-                    else bonusType = 'F';                   // Fire Mode
+                    if (roll < 0.10) bonusType = 'L';       
+                    else if (roll < 0.22) bonusType = '$';  
+                    else if (roll < 0.36) bonusType = 'M';  
+                    else if (roll < 0.50) bonusType = 'X';  
+                    else if (roll < 0.64) bonusType = 'B';  
+                    else if (roll < 0.78) bonusType = 'S';  
+                    else bonusType = 'F';                   
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -882,7 +877,6 @@
                 }
             }
 
-            // LOBBY PANEL - Positioned just in front of field (Z = -1.65, Y = 1.30)
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
                 this.lobbyGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
@@ -928,7 +922,6 @@
                 this.scene.add(this.lobbyGroup);
             }
 
-            // GAME OVER PANEL - Positioned just in front of field
             initGameOverPanel() {
                 this.gameOverGroup = new THREE.Group();
                 this.gameOverGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
@@ -981,7 +974,6 @@
                 this.gameOverTexture.needsUpdate = true;
             }
 
-            // LEVEL SUMMARY PANEL - Positioned just in front of field
             initLevelSummaryPanel() {
                 this.levelSummaryGroup = new THREE.Group();
                 this.levelSummaryGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
@@ -1078,7 +1070,6 @@
                 this.particlePool.fireworksExplode(lastBrickPosition);
                 audio.bombExplosion();
 
-                // Wait for fireworks animation (~1.2s) + 1.0s extra pause = 2.2s total delay
                 setTimeout(() => {
                     this.showLevelSummary();
                 }, 2200);
@@ -1086,6 +1077,7 @@
 
             showLevelSummary() {
                 this.gameState = 'LEVEL_SUMMARY';
+                this.isLevelTransitioning = false; // Reset transition lock so advanceLevel() proceeds
                 audio.levelUp();
                 this.clearPowerUpsAndBullets();
                 this.renderLevelSummaryCanvas();
@@ -1093,7 +1085,6 @@
                 showToast(`Level ${this.level} Complete!`, 'fa-trophy');
             }
 
-            // LEFT DEBUG & CONTROL HUD
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
                 this.hudGroup.position.set(-1.5, 1.5, -1.2);
@@ -1191,7 +1182,6 @@
                 this.hudTexture.needsUpdate = true;
             }
 
-            // RIGHT SPECULAR BONUS LEGEND HUD
             initBonusLegendHUD() {
                 this.rightHudGroup = new THREE.Group();
                 this.rightHudGroup.position.set(1.5, 1.5, -1.2);
@@ -1455,15 +1445,13 @@
             }
 
             advanceLevel() {
-                if (this.isLevelTransitioning) return;
-                this.isLevelTransitioning = true;
+                this.isLevelTransitioning = false;
 
                 this.level++;
                 if (this.level > MAX_LEVELS) {
                     this.gameState = 'VICTORY'; audio.gameWin();
                     showToast('VICTORY! All 10 levels completed!', 'fa-trophy');
                     this.returnToLobby();
-                    this.isLevelTransitioning = false;
                 } else {
                     this.gameState = 'PLAYING';
                     this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
@@ -1474,7 +1462,6 @@
                     this.resetBallAndPaddle();
                     this.renderHUDCanvas();
                     this.startLevelCountdown(() => { 
-                        this.isLevelTransitioning = false;
                         this.launchBall(); 
                     });
                 }
@@ -1510,7 +1497,6 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
-                // 8-Note Audio Arpeggio Loop (Dynamic BPM)
                 this.arpeggioTimer += dt;
                 const currentInterval = Math.max(0.08, this.arpeggioBaseInterval / this.speedMultiplier);
                 if (this.arpeggioTimer >= currentInterval) {
@@ -1519,7 +1505,6 @@
                     this.arpeggioStep = (this.arpeggioStep + 1) % 8;
                 }
 
-                // Independent Fire Timer
                 if (this.isFireActive) {
                     this.fireTimer -= dt;
                     if (this.fireTimer <= 0) {
@@ -1531,7 +1516,6 @@
                     this.renderHUDCanvas();
                 }
 
-                // Independent Explosive Timer
                 if (this.isExplosiveActive) {
                     this.explosiveTimer -= dt;
                     if (this.explosiveTimer <= 0) {
@@ -1547,7 +1531,6 @@
                     this.renderHUDCanvas();
                 }
 
-                // Independent 10s Barrier Shield Timer & Flashing
                 if (this.hasBarrier) {
                     this.barrierTimer -= dt;
                     if (this.barrierTimer <= 0) {
@@ -1567,7 +1550,6 @@
 
                 const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
 
-                // POWER-UP PICKUPS
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1649,7 +1631,6 @@
                     }
                 }
 
-                // BULLETS PHYSICS
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
                     const bullet = this.bullets[i];
                     bullet.position.y += 4.5 * dt;
@@ -1706,7 +1687,6 @@
                     }
                 }
 
-                // BALLS PHYSICS
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
 
                 for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
