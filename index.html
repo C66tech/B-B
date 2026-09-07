@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.6.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v2.7.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.6.0
+                            v2.7.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,7 +99,7 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.6.0";
+        const VERSION = "v2.7.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -362,6 +362,9 @@
                 this.paddleWidth = 0.38 * 0.90; 
                 this.paddleX = 0;
 
+                // Field Scaling System
+                this.fieldScale = 1.0;
+
                 // Transition Lock to prevent race condition bugs on level advance
                 this.isLevelTransitioning = false;
 
@@ -445,6 +448,7 @@
             initField() {
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, 0, FIELD.zPos);
+                this.fieldGroup.scale.setScalar(this.fieldScale);
 
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
@@ -483,7 +487,6 @@
             }
 
             buildBricksForLevel(levelNum) {
-                // Complete deep disposal of graphics and edge meshes
                 while (this.bricksGroup.children.length > 0) {
                     const b = this.bricksGroup.children[0];
                     this.bricksGroup.remove(b);
@@ -499,7 +502,6 @@
                     });
                 }
 
-                // RIGHE PER LIVELLO: Strictly 3 + int(n/2) as requested
                 const rows = 3 + Math.floor(levelNum / 2);
                 const brickW = BRICK_W;
                 const brickH = BRICK_H;
@@ -562,7 +564,6 @@
                     }
                 }
 
-                // BONUS DISTRIBUTION: 3 + int(n/2) bonuses uniformly pre-allocated at level start
                 const numBonuses = 3 + Math.floor(levelNum / 2);
                 const availableIndices = createdBricks.map((_, idx) => idx);
 
@@ -926,18 +927,12 @@
                 ctx.fillText(`PAD MODE     : ${modeText}`, 80, 450);
                 ctx.fillStyle = '#38bdf8'; ctx.fillText(`CONTROLLER   : HAND ${this.activeHand}`, 80, 500);
 
-                if (this.isFireActive && this.fireTimer > 0) {
-                    ctx.fillStyle = '#ff3300'; ctx.fillText(`FIRE BONUS   : 🔥 ACTIVE (${this.fireTimer.toFixed(1)}s)`, 80, 550);
-                } else if (this.controlMode === 'TILT') {
-                    ctx.fillStyle = '#00f0ff'; ctx.fillText(`SENSITIVITY  : ${this.paddleSensitivity.toFixed(1)}x (ACTIVE)`, 80, 550);
-                } else {
-                    ctx.fillStyle = '#64748b'; ctx.fillText(`SENSITIVITY  : ${this.paddleSensitivity.toFixed(1)}x (Inactive in Ray)`, 80, 550);
-                }
+                ctx.fillStyle = '#00f0ff'; ctx.fillText(`FIELD SCALE  : ${this.fieldScale.toFixed(2)}x (Thumbstick)`, 80, 550);
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Touch Controller to toggle Laser Rays', w / 2, 1140);
                 ctx.fillText('💡 DRAG THIS HUD BY HOLDING GRIP BUTTON', w / 2, 1180);
-                ctx.fillText('Y=0 Ground Level Sync Active', w / 2, 1220);
+                ctx.fillText('💡 THUMBSTICK UP/DOWN = SCALE FIELD', w / 2, 1220);
                 this.hudTexture.needsUpdate = true;
             }
 
@@ -1341,7 +1336,7 @@
                 }
             }
 
-            updatePaddleAndControllers() {
+            updatePaddleAndControllers(dt) {
                 const halfPad = this.paddleWidth / 2;
                 const maxClampedX = FIELD.width / 2 - halfPad;
 
@@ -1349,15 +1344,33 @@
                     const session = this.renderer.xr.getSession();
                     if (session) {
                         for (const inputSource of session.inputSources) {
-                            if (inputSource.gamepad && inputSource.handedness === 'right') {
+                            if (inputSource.gamepad) {
                                 const gamepad = inputSource.gamepad;
-                                const btnB = gamepad.buttons[5] || gamepad.buttons[1];
-                                if (btnB) {
-                                    const isPressed = btnB.pressed;
-                                    if (isPressed && !this.prevButtonBState) {
-                                        audio.init(); this.toggleLaserRays();
+
+                                // Right Hand Button B Toggle
+                                if (inputSource.handedness === 'right') {
+                                    const btnB = gamepad.buttons[5] || gamepad.buttons[1];
+                                    if (btnB) {
+                                        const isPressed = btnB.pressed;
+                                        if (isPressed && !this.prevButtonBState) {
+                                            audio.init(); this.toggleLaserRays();
+                                        }
+                                        this.prevButtonBState = isPressed;
                                     }
-                                    this.prevButtonBState = isPressed;
+                                }
+
+                                // THUMBSTICK UP/DOWN FIELD SCALING
+                                const axes = gamepad.axes;
+                                if (axes && axes.length >= 2) {
+                                    const axisY = (axes.length >= 4) ? axes[3] : axes[1];
+                                    if (Math.abs(axisY) > 0.25) {
+                                        // Push UP (negative Y) -> Increase Scale
+                                        // Push DOWN (positive Y) -> Decrease Scale
+                                        this.fieldScale -= axisY * 0.8 * dt;
+                                        this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
+                                        this.fieldGroup.scale.setScalar(this.fieldScale);
+                                        this.renderHUDCanvas();
+                                    }
                                 }
                             }
                         }
@@ -1389,7 +1402,8 @@
                             this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
                             const ray = new THREE.Ray(this.rayOrigin, this.rayDir);
                             if (ray.intersectPlane(this.playfieldPlane, this.targetPoint)) {
-                                this.paddleX = this.targetPoint.x;
+                                // Scale compensation for Ray position targeting
+                                this.paddleX = this.targetPoint.x / this.fieldScale;
                             }
                         } else if (this.controlMode === 'TILT') {
                             const euler = new THREE.Euler().setFromQuaternion(activeController.quaternion, 'ZYX');
@@ -1411,7 +1425,7 @@
 
             render(timestamp, frame) {
                 const dt = 0.016;
-                this.updatePaddleAndControllers();
+                this.updatePaddleAndControllers(dt);
                 this.updatePhysics(dt);
                 this.particlePool.update(dt);
                 if (this.ballLight) this.ballLight.intensity = 1.2 + Math.sin(performance.now() * 0.01) * 0.4;
