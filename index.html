@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.8</title>
+    <title>ARkanium v3.8.9</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.8
+                            v3.8.9
                         </span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.8";
+        const VERSION = "v3.8.9";
         const MAX_LEVELS = 16;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -405,6 +405,7 @@
 
                 this.fieldScale = 1.0;
                 this.fieldPosY = 0.0;
+                this.fieldTiltX = 0.0; // Angolo di inclinazione in radianti (0 a Math.PI / 2)
 
                 this.isLevelTransitioning = false;
                 this.isCountdownActive = false;
@@ -440,7 +441,6 @@
 
                 this.raycaster = new THREE.Raycaster();
                 this.tempMatrix = new THREE.Matrix4();
-                this.playfieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -FIELD.zPos);
                 this.rayOrigin = new THREE.Vector3();
                 this.rayDir = new THREE.Vector3();
                 this.targetPoint = new THREE.Vector3();
@@ -507,6 +507,7 @@
                 this.fieldGroup = new THREE.Group();
                 this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
                 this.fieldGroup.scale.setScalar(this.fieldScale);
+                this.fieldGroup.rotation.x = this.fieldTiltX;
 
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
                 const edges = new THREE.EdgesGeometry(frameGeo);
@@ -929,7 +930,7 @@
                 }
             }
 
-            // TITOLO LOBBY INGRANDITO SENZA SOTTOTITOLO "3D SPATIAL ARCADE"
+            // TITOLO ARkanium ADATTATO ALLA LARGHEZZA DEL PANNELLO (FONT 220px)
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
                 this.lobbyGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
@@ -942,8 +943,13 @@
                 grad.addColorStop(0, '#0a0f24'); grad.addColorStop(0.5, '#1e0538'); grad.addColorStop(1, '#051f38');
                 ctx.fillStyle = grad; ctx.fillRect(0, 0, 1024, 512);
                 ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 12; ctx.strokeRect(20, 20, 984, 472);
-                ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff';
-                ctx.font = 'black 130px sans-serif'; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 35;
+                
+                ctx.textAlign = 'center'; 
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '900 220px sans-serif'; 
+                ctx.shadowColor = '#00f0ff'; 
+                ctx.shadowBlur = 45;
                 ctx.fillText(GAME_TITLE, 512, 230);
 
                 const tex = new THREE.CanvasTexture(canvas);
@@ -1200,7 +1206,6 @@
                 showToast(`Level ${this.level} Complete!`, 'fa-trophy');
             }
 
-            // HUD DI SINISTRA RIDIMENSIONATO E COMPATTATO VERTICALMENTE
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
                 this.hudGroup.position.set(-1.5, 1.5, -1.2);
@@ -1273,11 +1278,11 @@
                 
                 ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 150); ctx.lineTo(w - 50, 150); ctx.stroke();
 
-                // ISTRUZIONI INGRANDITE PER UNA MIGLIORE LEGGIBILITÀ
                 ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText('Press B Button on Controller to Toggle Laser Rays', w / 2, 620);
-                ctx.fillText('💡 DRAG THIS HUD ON XZ PLANE WITH GRIP BUTTON', w / 2, 680);
-                ctx.fillText('💡 STICK L/R = SCALE | STICK U/D = HEIGHT', w / 2, 740);
+                ctx.fillText('Press B Button on Controller to Toggle Laser Rays', w / 2, 600);
+                ctx.fillText('🕹️ LEFT STICK U/D = TILT FIELD (0°-90°)', w / 2, 655);
+                ctx.fillText('🕹️ RIGHT STICK = SCALE & HEIGHT', w / 2, 705);
+                ctx.fillText('💡 DRAG THIS HUD ON XZ PLANE WITH GRIP BUTTON', w / 2, 755);
 
                 this.hudTexture.needsUpdate = true;
             }
@@ -1968,16 +1973,23 @@
                                         axisY = axes[1];
                                     }
 
-                                    if (Math.abs(axisX) > 0.20) {
-                                        this.fieldScale += axisX * 0.8 * dt;
-                                        this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
-                                        this.fieldGroup.scale.setScalar(this.fieldScale);
-                                    }
-
-                                    if (Math.abs(axisY) > 0.20) {
-                                        this.fieldPosY -= axisY * 0.8 * dt;
-                                        this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
-                                        this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
+                                    // LEVETTA SINISTRA: INCLINAZIONE CAMPO DA GIOCO (0° a 90°)
+                                    if (inputSource.handedness === 'left') {
+                                        if (Math.abs(axisY) > 0.20) {
+                                            this.fieldTiltX += axisY * 1.5 * dt;
+                                            this.fieldTiltX = THREE.MathUtils.clamp(this.fieldTiltX, 0, Math.PI / 2);
+                                        }
+                                    } 
+                                    // LEVETTA DESTRA: SCALA E ALTEZZA CAMPO DA GIOCO
+                                    else if (inputSource.handedness === 'right') {
+                                        if (Math.abs(axisX) > 0.20) {
+                                            this.fieldScale += axisX * 0.8 * dt;
+                                            this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
+                                        }
+                                        if (Math.abs(axisY) > 0.20) {
+                                            this.fieldPosY -= axisY * 0.8 * dt;
+                                            this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
+                                        }
                                     }
                                 }
                             }
@@ -2013,9 +2025,17 @@
                             this.tempMatrix.identity().extractRotation(activeController.matrixWorld);
                             this.rayOrigin.setFromMatrixPosition(activeController.matrixWorld);
                             this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
-                            const ray = new THREE.Ray(this.rayOrigin, this.rayDir);
-                            if (ray.intersectPlane(this.playfieldPlane, this.targetPoint)) {
-                                this.paddleX = this.targetPoint.x / this.fieldScale;
+                            
+                            // CALCOLO DI INTERSEZIONE NEL SPAZIO LOCALE DEL FIELD (SUPPORTA INCLINAZIONE)
+                            this.fieldGroup.updateMatrixWorld(true);
+                            const invMatrix = new THREE.Matrix4().copy(this.fieldGroup.matrixWorld).invert();
+                            const localRayOrigin = this.rayOrigin.clone().applyMatrix4(invMatrix);
+                            const localRayDir = this.rayDir.clone().transformDirection(invMatrix).normalize();
+                            const localRay = new THREE.Ray(localRayOrigin, localRayDir);
+                            const localPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                            
+                            if (localRay.intersectPlane(localPlane, this.targetPoint)) {
+                                this.paddleX = this.targetPoint.x;
                             }
                         } else if (this.controlMode === 'TILT') {
                             const euler = new THREE.Euler().setFromQuaternion(activeController.quaternion, 'ZYX');
@@ -2024,6 +2044,11 @@
                         }
                     }
                 }
+
+                // APPLICAZIONE RAGGI, TRASFORMAZIONE E INCLINAZIONE CAMPO
+                this.fieldGroup.scale.setScalar(this.fieldScale);
+                this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
+                this.fieldGroup.rotation.x = this.fieldTiltX;
 
                 const lasersVisible = (this.gameState !== 'PLAYING') || this.showLasersInGame;
                 this.controllers.forEach((ctrl) => {
