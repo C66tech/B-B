@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.4</title>
+    <title>ARkanium v3.8.5</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.4
+                            v3.8.5
                         </span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.4";
+        const VERSION = "v3.8.5";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -172,7 +172,7 @@
                     const now = this.ctx.currentTime;
                     const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-                    gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    gain1.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
                     osc.connect(gain); gain.connect(this.ctx.destination);
                     osc.start(now); osc.stop(now + 0.3);
                 } catch (e) {}
@@ -373,7 +373,6 @@
                 this.rayDir = new THREE.Vector3();
                 this.targetPoint = new THREE.Vector3();
 
-                // Cache UI state per evitare redraw inutili della Canvas GPU
                 this.lastRenderedScore = -1;
                 this.lastRenderedLives = -1;
 
@@ -456,10 +455,42 @@
                 this.fieldGroup.add(this.bricksGroup);
                 this.scene.add(this.fieldGroup);
 
+                this.initLevelHeader();
                 this.initInGameStats();
             }
 
-            // RISOLUZIONE RADDOPPIATA (2048x128) - NESSUNA SOVRAPPOSIZIONE
+            // LEVEL HEADER CENTRATO APPENA SOPRA AL CAMPO DI GIOCO
+            initLevelHeader() {
+                this.levelCanvas = document.createElement('canvas');
+                this.levelCanvas.width = 1024;
+                this.levelCanvas.height = 128;
+                this.levelCtx = this.levelCanvas.getContext('2d');
+                this.levelTexture = new THREE.CanvasTexture(this.levelCanvas);
+
+                const geo = new THREE.PlaneGeometry(0.85, 0.11);
+                const mat = new THREE.MeshBasicMaterial({ map: this.levelTexture, transparent: true });
+                this.levelHeaderMesh = new THREE.Mesh(geo, mat);
+                this.levelHeaderMesh.position.set(0, FIELD.topY + 0.08, 0);
+                this.fieldGroup.add(this.levelHeaderMesh);
+                this.updateLevelHeader();
+            }
+
+            updateLevelHeader() {
+                if (!this.levelCtx) return;
+                const ctx = this.levelCtx;
+                ctx.clearRect(0, 0, 1024, 128);
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 64px monospace';
+                ctx.fillStyle = '#00f0ff';
+                ctx.shadowColor = '#00f0ff';
+                ctx.shadowBlur = 16;
+                ctx.fillText(`LEVEL ${this.level}`, 512, 64);
+
+                this.levelTexture.needsUpdate = true;
+            }
+
             initInGameStats() {
                 this.inGameStatsCanvas = document.createElement('canvas');
                 this.inGameStatsCanvas.width = 2048;
@@ -634,7 +665,6 @@
                 this.resetBallAndPaddle();
             }
 
-            // RIMOZIONE POINTLIGHT DA OGNI PALLA PER ELIMINARE SOVRACCARICO MULTI-BALL
             createBallInstance(x, y, velX = 0, velY = 0) {
                 const bMat = new THREE.MeshStandardMaterial({
                     color: 0xffffff, emissive: this.isExplosiveActive ? 0xff0000 : 0x00f0ff,
@@ -962,7 +992,6 @@
                 this.scene.add(this.levelSummaryGroup);
             }
 
-            // RIMOZIONE INFO DEBUG COME RICHIESTO
             renderLevelSummaryCanvas() {
                 if (!this.levelSummaryCtx) return;
                 const ctx = this.levelSummaryCtx;
@@ -1093,6 +1122,7 @@
                 this.renderHUDCanvas();
             }
 
+            // RIMOSSE LE VOCI: GAME STATE, BRICKS LEFT, ACTIVE BALLS, ACTIVE BUFFS, CURRENT LEVEL
             renderHUDCanvas() {
                 this.updateInGameStats();
 
@@ -1106,26 +1136,6 @@
                 ctx.fillText(GAME_TITLE, w / 2, 80);
                 ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#ff00d4'; ctx.fillText(`VERSION: ${VERSION}`, w / 2, 125);
                 ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
-                
-                ctx.textAlign = 'left'; ctx.font = 'bold 30px monospace';
-
-                ctx.fillStyle = '#ffea00'; ctx.fillText(`GAME STATE   : ${this.gameState}`, 80, 200);
-                ctx.fillStyle = '#00f0ff'; ctx.fillText(`CURRENT LEVEL: ${this.level} / ${MAX_LEVELS}`, 80, 250);
-                
-                ctx.fillStyle = '#00f0ff'; ctx.fillText(`BRICKS LEFT  : ${this.activeBricksCount}`, 80, 300);
-                ctx.fillStyle = '#a855f7'; ctx.fillText(`ACTIVE BALLS : ${this.balls.length}`, 80, 350);
-                
-                ctx.fillStyle = '#ff00d4';
-                const modeText = this.controlMode === 'RAY' ? 'RAY (1:1 Intersection)' : 'TILT (Wrist Tilt)';
-                ctx.fillText(`PAD MODE     : ${modeText}`, 80, 400);
-
-                let activeBuffs = [];
-                if (this.isFireActive) activeBuffs.push(`🔥 F(${this.fireTimer.toFixed(1)}s)`);
-                if (this.isExplosiveActive) activeBuffs.push(`💥 X(${this.explosiveTimer.toFixed(1)}s)`);
-                if (this.hasBarrier) activeBuffs.push(`🛡️ B(${this.barrierTimer.toFixed(1)}s)`);
-                let bonusStatus = activeBuffs.length > 0 ? activeBuffs.join(' ') : 'NONE';
-
-                ctx.fillStyle = '#ffea00'; ctx.fillText(`ACTIVE BUFFS : ${bonusStatus}`, 80, 450);
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Touch Controller to toggle Laser Rays', w / 2, 1140);
@@ -1394,6 +1404,7 @@
 
                 this.buildBricksForLevel(this.level);
                 this.resetBallAndPaddle();
+                this.updateLevelHeader();
                 this.updateInGameStats(true);
                 this.renderHUDCanvas();
                 this.startLevelCountdown(() => { this.launchBall(); });
@@ -1415,6 +1426,7 @@
                     
                     this.buildBricksForLevel(this.level);
                     this.resetBallAndPaddle();
+                    this.updateLevelHeader();
                     this.updateInGameStats(true);
                     this.renderHUDCanvas();
                     this.startLevelCountdown(() => { 
@@ -1432,6 +1444,7 @@
                 this.gameOverGroup.visible = false;
                 this.levelSummaryGroup.visible = false;
                 this.resetBallAndPaddle();
+                this.updateLevelHeader();
                 this.renderHUDCanvas();
             }
 
@@ -1447,6 +1460,7 @@
                 this.renderGameOverCanvas();
                 this.gameOverGroup.visible = true;
                 this.resetBallAndPaddle();
+                this.updateLevelHeader();
                 this.renderHUDCanvas();
             }
 
@@ -1500,7 +1514,6 @@
                     }
                 }
 
-                // DIMENSIONI PER CONTROLLO COLLISIONE AABB DIRETTO A 60 FPS
                 const padX = this.paddleMesh.position.x;
                 const padY = this.paddleMesh.position.y;
                 const padMinX = padX - this.paddleWidth / 2;
@@ -1508,7 +1521,6 @@
                 const padMinY = padY - 0.03;
                 const padMaxY = padY + 0.03;
 
-                // --- POWER UPS COLLECTION ---
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1591,7 +1603,6 @@
                     }
                 }
 
-                // --- BULLET PHYSICS (AABB OTTIMIZZATO) ---
                 const halfBrickW = BRICK_W / 2;
                 const halfBrickH = BRICK_H / 2;
 
@@ -1660,7 +1671,6 @@
                     }
                 }
 
-                // --- BALL PHYSICS (AABB MATEMATICO AD ALTA FLUIDITÀ) ---
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
 
                 for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
@@ -1712,7 +1722,6 @@
                         }
                     }
 
-                    // Impatto Paddle AABB
                     if (ballY - halfCube <= padMaxY && ballY + halfCube >= padMinY &&
                         ballX + halfCube >= padMinX && ballX - halfCube <= padMaxX && bVel.y < 0) {
                         
@@ -1724,7 +1733,6 @@
                         audio.paddleHit();
                     }
 
-                    // Impatto Mattoni AABB
                     const bricks = this.bricksGroup.children;
                     for (let i = bricks.length - 1; i >= 0; i--) {
                         const b = bricks[i];
