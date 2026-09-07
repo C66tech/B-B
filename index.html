@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.9</title>
+    <title>ARkanium v3.9.1</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.9
+                            v3.9.1
                         </span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.9";
+        const VERSION = "v3.9.1";
         const MAX_LEVELS = 16;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -405,7 +405,7 @@
 
                 this.fieldScale = 1.0;
                 this.fieldPosY = 0.0;
-                this.fieldTiltX = 0.0; // Angolo di inclinazione in radianti (0 a Math.PI / 2)
+                this.fieldTiltX = 0.0;
 
                 this.isLevelTransitioning = false;
                 this.isCountdownActive = false;
@@ -443,7 +443,6 @@
                 this.tempMatrix = new THREE.Matrix4();
                 this.rayOrigin = new THREE.Vector3();
                 this.rayDir = new THREE.Vector3();
-                this.targetPoint = new THREE.Vector3();
 
                 this.lastRenderedScore = -1;
                 this.lastRenderedLives = -1;
@@ -930,7 +929,6 @@
                 }
             }
 
-            // TITOLO ARkanium ADATTATO ALLA LARGHEZZA DEL PANNELLO (FONT 220px)
             initLobbyPanel() {
                 this.lobbyGroup = new THREE.Group();
                 this.lobbyGroup.position.set(0, FIELD.centerY, FIELD.zPos + 0.15);
@@ -1280,7 +1278,7 @@
 
                 ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Controller to Toggle Laser Rays', w / 2, 600);
-                ctx.fillText('🕹️ LEFT STICK U/D = TILT FIELD (0°-90°)', w / 2, 655);
+                ctx.fillText('🕹️ LEFT STICK U/D = TILT BACKWARDS (0° to -90°)', w / 2, 655);
                 ctx.fillText('🕹️ RIGHT STICK = SCALE & HEIGHT', w / 2, 705);
                 ctx.fillText('💡 DRAG THIS HUD ON XZ PLANE WITH GRIP BUTTON', w / 2, 755);
 
@@ -1973,11 +1971,11 @@
                                         axisY = axes[1];
                                     }
 
-                                    // LEVETTA SINISTRA: INCLINAZIONE CAMPO DA GIOCO (0° a 90°)
+                                    // LEVETTA SINISTRA: INCLINAZIONE ALL'INDIETRO (0° a -90°)
                                     if (inputSource.handedness === 'left') {
                                         if (Math.abs(axisY) > 0.20) {
-                                            this.fieldTiltX += axisY * 1.5 * dt;
-                                            this.fieldTiltX = THREE.MathUtils.clamp(this.fieldTiltX, 0, Math.PI / 2);
+                                            this.fieldTiltX -= axisY * 1.5 * dt;
+                                            this.fieldTiltX = THREE.MathUtils.clamp(this.fieldTiltX, -Math.PI / 2, 0);
                                         }
                                     } 
                                     // LEVETTA DESTRA: SCALA E ALTEZZA CAMPO DA GIOCO
@@ -2026,16 +2024,13 @@
                             this.rayOrigin.setFromMatrixPosition(activeController.matrixWorld);
                             this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
                             
-                            // CALCOLO DI INTERSEZIONE NEL SPAZIO LOCALE DEL FIELD (SUPPORTA INCLINAZIONE)
-                            this.fieldGroup.updateMatrixWorld(true);
-                            const invMatrix = new THREE.Matrix4().copy(this.fieldGroup.matrixWorld).invert();
-                            const localRayOrigin = this.rayOrigin.clone().applyMatrix4(invMatrix);
-                            const localRayDir = this.rayDir.clone().transformDirection(invMatrix).normalize();
-                            const localRay = new THREE.Ray(localRayOrigin, localRayDir);
-                            const localPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-                            
-                            if (localRay.intersectPlane(localPlane, this.targetPoint)) {
-                                this.paddleX = this.targetPoint.x;
+                            // INTERSEZIONE CON PIANO VERTICALE FISSO (Z = FIELD.zPos)
+                            if (Math.abs(this.rayDir.z) > 0.001) {
+                                const t = (FIELD.zPos - this.rayOrigin.z) / this.rayDir.z;
+                                if (t > 0) { // Il raggio punta in avanti
+                                    const targetXWorld = this.rayOrigin.x + t * this.rayDir.x;
+                                    this.paddleX = targetXWorld / this.fieldScale;
+                                }
                             }
                         } else if (this.controlMode === 'TILT') {
                             const euler = new THREE.Euler().setFromQuaternion(activeController.quaternion, 'ZYX');
