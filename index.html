@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v2.7.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v2.9.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v2.7.0
+                            v2.9.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,11 +99,10 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v2.7.0";
+        const VERSION = "v2.9.0";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
-        // Toast Notification System
         function showToast(message, iconClass = "fa-circle-info") {
             const container = document.getElementById('toast-container');
             const bodyMessage = document.getElementById('toast-message');
@@ -123,7 +122,6 @@
             }, 3200);
         }
 
-        // Pseudo-Random Number Generator with Constant Seed Initialization
         class SeededPRNG {
             constructor(seed = INITIAL_PRNG_SEED) {
                 this.seed = seed;
@@ -141,7 +139,6 @@
             }
         }
 
-        // Web Audio Synthesizer Engine
         class RetroAudioEngine {
             constructor() {
                 this.ctx = null;
@@ -181,7 +178,6 @@
                 if (this.muted || !this.ctx) return;
                 try {
                     const now = this.ctx.currentTime;
-                    
                     const osc1 = this.ctx.createOscillator();
                     const gain1 = this.ctx.createGain();
                     osc1.type = 'sawtooth';
@@ -193,21 +189,28 @@
                     gain1.connect(this.ctx.destination);
                     osc1.start(now);
                     osc1.stop(now + 0.08);
-
-                    const osc2 = this.ctx.createOscillator();
-                    const gain2 = this.ctx.createGain();
-                    osc2.type = 'square';
-                    osc2.frequency.setValueAtTime(160, now);
-                    osc2.frequency.exponentialRampToValueAtTime(25, now + 0.05);
-                    gain2.gain.setValueAtTime(0.30, now);
-                    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-                    osc2.connect(gain2);
-                    gain2.connect(this.ctx.destination);
-                    osc2.start(now);
-                    osc2.stop(now + 0.05);
                 } catch (e) {}
             }
 
+            explosion() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } catch (e) {}
+            }
+
+            shieldHit() { this.playTone(620, 'sine', 0.2, 0.3); }
             speedBoost() { this.playTone(880, 'sine', 0.12, 0.2); }
             powerUpPickup() {
                 [523, 659, 783, 1046].forEach((f, idx) => {
@@ -241,7 +244,6 @@
 
         const audio = new RetroAudioEngine();
 
-        // --- SPATIAL FIELD CONFIGURATION ---
         const BRICK_W = 0.12;
         const BRICK_H = 0.06;
         const BRICK_D = 0.06;
@@ -260,7 +262,6 @@
 
         const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88, 0x9900ff];
 
-        // Advanced Pyrotechnic Particle Explosion Pool
         class QuestPyrotechnicParticlePool {
             constructor(parentGroup, maxParticles = 300) {
                 this.parentGroup = parentGroup;
@@ -351,7 +352,6 @@
                 this.container = document.getElementById('webgl-container');
                 this.prng = new SeededPRNG(INITIAL_PRNG_SEED);
 
-                // Game State variables
                 this.gameState = 'LOBBY'; 
                 this.level = 1;
                 this.score = 0;
@@ -362,23 +362,25 @@
                 this.paddleWidth = 0.38 * 0.90; 
                 this.paddleX = 0;
 
-                // Field Scaling System
                 this.fieldScale = 1.0;
+                this.fieldPosY = 0.0;
 
-                // Transition Lock to prevent race condition bugs on level advance
                 this.isLevelTransitioning = false;
 
-                // Countdown State
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
 
-                // Power-up State Management
+                // Power-up States
                 this.isFireActive = false;
+                this.fireTimer = 0;
+                this.isExplosiveActive = false;
+                this.explosiveTimer = 0;
+                this.hasBarrier = false;
+
+                this.balls = []; // Supports Multi-Ball!
                 this.activePowerUps = [];
                 this.bullets = [];
-                this.fireTimer = 0;
 
-                // Control Mode & Handedness
                 this.controlMode = 'RAY';
                 this.activeHand = 'RIGHT';
                 this.paddleSensitivity = 2.0;
@@ -386,7 +388,6 @@
                 this.showLasersInGame = false;
                 this.prevButtonBState = false;
 
-                // HUD Dragging System
                 this.isDraggingHUD = false;
                 this.hudDragController = null;
                 this.hudDragOffset = new THREE.Vector3();
@@ -394,7 +395,6 @@
 
                 this.interactiveObjects = [];
 
-                // Raycasting
                 this.raycaster = new THREE.Raycaster();
                 this.tempMatrix = new THREE.Matrix4();
                 this.playfieldPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -FIELD.zPos);
@@ -447,7 +447,7 @@
 
             initField() {
                 this.fieldGroup = new THREE.Group();
-                this.fieldGroup.position.set(0, 0, FIELD.zPos);
+                this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
                 this.fieldGroup.scale.setScalar(this.fieldScale);
 
                 const frameGeo = new THREE.BoxGeometry(FIELD.width, FIELD.height, FIELD.depth);
@@ -468,6 +468,16 @@
                 const hazardBar = new THREE.Mesh(hazardGeo, hazardMat);
                 hazardBar.position.set(0, FIELD.bottomY, 0);
                 this.fieldGroup.add(hazardBar);
+
+                // BARRIER / SHIELD MESH
+                const barrierGeo = new THREE.BoxGeometry(FIELD.width, 0.03, FIELD.depth * 1.2);
+                const barrierMat = new THREE.MeshStandardMaterial({
+                    color: 0x3b82f6, emissive: 0x3b82f6, emissiveIntensity: 0.9, transparent: true, opacity: 0.75
+                });
+                this.barrierMesh = new THREE.Mesh(barrierGeo, barrierMat);
+                this.barrierMesh.position.set(0, FIELD.bottomY + 0.02, 0);
+                this.barrierMesh.visible = false;
+                this.fieldGroup.add(this.barrierMesh);
 
                 this.bricksGroup = new THREE.Group();
                 this.fieldGroup.add(this.bricksGroup);
@@ -493,11 +503,8 @@
                     b.traverse((child) => {
                         if (child.geometry) child.geometry.dispose();
                         if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material.forEach(m => m.dispose());
-                            } else {
-                                child.material.dispose();
-                            }
+                            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                            else child.material.dispose();
                         }
                     });
                 }
@@ -520,9 +527,7 @@
 
                 for (let i = allPairs.length - 1; i > 0; i--) {
                     const j = Math.floor(this.prng.next() * (i + 1));
-                    const temp = allPairs[i];
-                    allPairs[i] = allPairs[j];
-                    allPairs[j] = temp;
+                    const temp = allPairs[i]; allPairs[i] = allPairs[j]; allPairs[j] = temp;
                 }
 
                 const removedSet = new Set();
@@ -569,24 +574,21 @@
 
                 for (let i = availableIndices.length - 1; i > 0; i--) {
                     const j = Math.floor(this.prng.next() * (i + 1));
-                    const temp = availableIndices[i];
-                    availableIndices[i] = availableIndices[j];
-                    availableIndices[j] = temp;
+                    const temp = availableIndices[i]; availableIndices[i] = availableIndices[j]; availableIndices[j] = temp;
                 }
 
                 const countToAssign = Math.min(numBonuses, createdBricks.length);
                 for (let i = 0; i < countToAssign; i++) {
                     const targetBrick = createdBricks[availableIndices[i]];
-                    
                     const roll = this.prng.next();
                     let bonusType = 'F';
-                    if (roll < 0.10) {
-                        bonusType = 'L'; // Rare Extra Life
-                    } else if (roll < 0.55) {
-                        bonusType = 'S'; // Speed Reduction
-                    } else {
-                        bonusType = 'F'; // Fire Mode
-                    }
+
+                    if (roll < 0.10) bonusType = 'L';      // 10% Extra Life
+                    else if (roll < 0.25) bonusType = 'M'; // 15% Multi-Ball
+                    else if (roll < 0.40) bonusType = 'X'; // 15% Explosive Ball
+                    else if (roll < 0.55) bonusType = 'B'; // 15% Barrier Shield
+                    else if (roll < 0.75) bonusType = 'S'; // 20% Speed Slow
+                    else bonusType = 'F';                  // 25% Fire Mode
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -602,25 +604,28 @@
                 this.paddleMesh.position.set(0, FIELD.bottomY + 0.15, 0);
                 this.fieldGroup.add(this.paddleMesh);
 
-                const ballSide = 0.06;
-                const bGeo = new THREE.BoxGeometry(ballSide, ballSide, ballSide);
-                const bMat = new THREE.MeshStandardMaterial({
-                    color: 0xffffff, emissive: 0x00f0ff,
-                    emissiveIntensity: 0.9, roughness: 0.1
-                });
-                this.ballMesh = new THREE.Mesh(bGeo, bMat);
-                this.ballSide = ballSide;
-
-                this.ballLight = new THREE.PointLight(0x00ffff, 1.5, 1.5);
-                this.ballMesh.add(this.ballLight);
-                this.fieldGroup.add(this.ballMesh);
-
-                this.ballVel = new THREE.Vector3(0, 0, 0);
+                this.ballSide = 0.06;
+                this.sharedBallGeo = new THREE.BoxGeometry(this.ballSide, this.ballSide, this.ballSide);
                 this.resetBallAndPaddle();
             }
 
+            createBallInstance(x, y, velX = 0, velY = 0) {
+                const bMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff, emissive: this.isExplosiveActive ? 0xff0055 : 0x00f0ff,
+                    emissiveIntensity: 0.9, roughness: 0.1
+                });
+                const mesh = new THREE.Mesh(this.sharedBallGeo, bMat);
+                mesh.position.set(x, y, 0);
+
+                const light = new THREE.PointLight(this.isExplosiveActive ? 0xff0055 : 0x00ffff, 1.5, 1.5);
+                mesh.add(light);
+                this.fieldGroup.add(mesh);
+
+                return { mesh, vel: new THREE.Vector3(velX, velY, 0) };
+            }
+
             setPaddleBonusState(bonusType) {
-                if (bonusType === 'FIRE' || bonusType === true) {
+                if (bonusType === 'FIRE') {
                     this.isFireActive = true;
                     this.paddleMat.color.setHex(0xff3300);
                     this.paddleMat.emissive.setHex(0x991100);
@@ -632,6 +637,14 @@
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0x00ff88);
                     this.paddleMat.emissive.setHex(0x008844);
+                } else if (bonusType === 'EXPLOSIVE') {
+                    this.isFireActive = false;
+                    this.paddleMat.color.setHex(0xff0055);
+                    this.paddleMat.emissive.setHex(0x990033);
+                } else if (bonusType === 'BARRIER') {
+                    this.isFireActive = false;
+                    this.paddleMat.color.setHex(0x3b82f6);
+                    this.paddleMat.emissive.setHex(0x1d4ed8);
                 } else {
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0xffffff);
@@ -647,27 +660,20 @@
                 const ctx = c.getContext('2d');
 
                 let colorHex = '#ff3300';
-                let emissiveHex = 0xff3300;
-                if (type === 'S') { colorHex = '#00f0ff'; emissiveHex = 0x00f0ff; }
-                else if (type === 'L') { colorHex = '#00ff88'; emissiveHex = 0x00ff88; }
+                if (type === 'S') colorHex = '#00f0ff';
+                else if (type === 'L') colorHex = '#00ff88';
+                else if (type === 'X') colorHex = '#ff0055';
+                else if (type === 'M') colorHex = '#a855f7';
+                else if (type === 'B') colorHex = '#3b82f6';
 
-                ctx.fillStyle = colorHex;
-                ctx.fillRect(0, 0, 128, 128);
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 10;
-                ctx.strokeRect(5, 5, 118, 118);
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 85px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 128, 128);
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 118, 118);
+                ctx.fillStyle = '#ffffff'; ctx.font = 'bold 85px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(type, 64, 64);
 
                 const tex = new THREE.CanvasTexture(c);
                 const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-                const mat = new THREE.MeshStandardMaterial({
-                    map: tex, emissive: emissiveHex, emissiveIntensity: 0.6
-                });
+                const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: new THREE.Color(colorHex), emissiveIntensity: 0.6 });
 
                 const pMesh = new THREE.Mesh(geo, mat);
                 pMesh.position.copy(position);
@@ -682,7 +688,6 @@
 
                 const halfW = this.paddleWidth / 2 - 0.02;
                 const barrelY = this.paddleMesh.position.y + 0.04;
-
                 const leftX = this.paddleMesh.position.x - halfW;
                 const rightX = this.paddleMesh.position.x + halfW;
 
@@ -696,6 +701,33 @@
                 });
 
                 audio.laserShot();
+            }
+
+            triggerAreaExplosion(centerPos) {
+                audio.explosion();
+                const radius = 0.22;
+                const bricks = this.bricksGroup.children;
+
+                for (let j = bricks.length - 1; j >= 0; j--) {
+                    const b = bricks[j];
+                    if (!b || !b.visible || !b.userData || !b.userData.active) continue;
+
+                    const dist = b.position.distanceTo(centerPos);
+                    if (dist <= radius) {
+                        b.userData.active = false;
+                        b.visible = false;
+                        this.particlePool.explode(b.position, b.userData.colorHex);
+
+                        if (b.userData.hasBonus) {
+                            this.spawnPowerUp(b.position, b.userData.hasBonus);
+                        }
+
+                        this.bricksGroup.remove(b);
+                        if (b.geometry) b.geometry.dispose();
+                        if (b.material) b.material.dispose();
+                        this.score += b.userData.points;
+                    }
+                }
             }
 
             startLevelCountdown(onComplete) {
@@ -731,23 +763,40 @@
                     b.geometry.dispose(); b.material.dispose();
                 });
                 this.bullets = [];
+
+                this.balls.forEach(b => {
+                    this.fieldGroup.remove(b.mesh);
+                    b.mesh.traverse(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                });
+                this.balls = [];
+
                 this.fireTimer = 0;
+                this.explosiveTimer = 0;
+                this.isExplosiveActive = false;
+                this.hasBarrier = false;
+                if (this.barrierMesh) this.barrierMesh.visible = false;
                 this.setPaddleBonusState(false);
             }
 
             resetBallAndPaddle() {
                 this.paddleX = 0;
                 this.paddleMesh.position.x = 0;
-                this.ballMesh.position.set(0, FIELD.bottomY + 0.30, 0);
-                this.ballMesh.rotation.set(0, 0, 0);
-                this.ballVel.set(0, 0, 0);
                 this.clearPowerUpsAndBullets();
+
+                // Create initial single ball
+                const mainBall = this.createBallInstance(0, FIELD.bottomY + 0.30, 0, 0);
+                this.balls.push(mainBall);
             }
 
             launchBall() {
-                const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
-                const angle = (Math.random() * 0.4 - 0.2);
-                this.ballVel.set(Math.sin(angle) * currentSpeed, currentSpeed, 0);
+                if (this.balls.length > 0) {
+                    const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
+                    const angle = (Math.random() * 0.4 - 0.2);
+                    this.balls[0].vel.set(Math.sin(angle) * currentSpeed, currentSpeed, 0);
+                }
             }
 
             initLobbyPanel() {
@@ -922,17 +971,21 @@
 
                 const activeBricks = this.getRemainingBricksCount();
                 ctx.fillStyle = '#00f0ff'; ctx.fillText(`BRICKS LEFT  : ${activeBricks}`, 80, 400);
+                ctx.fillStyle = '#a855f7'; ctx.fillText(`ACTIVE BALLS : ${this.balls.length}`, 80, 450);
                 ctx.fillStyle = '#ff00d4';
                 const modeText = this.controlMode === 'RAY' ? 'RAY (1:1 Intersection)' : 'TILT (Wrist Tilt)';
-                ctx.fillText(`PAD MODE     : ${modeText}`, 80, 450);
-                ctx.fillStyle = '#38bdf8'; ctx.fillText(`CONTROLLER   : HAND ${this.activeHand}`, 80, 500);
+                ctx.fillText(`PAD MODE     : ${modeText}`, 80, 500);
 
-                ctx.fillStyle = '#00f0ff'; ctx.fillText(`FIELD SCALE  : ${this.fieldScale.toFixed(2)}x (Thumbstick)`, 80, 550);
+                let bonusStatus = 'NONE';
+                if (this.isFireActive) bonusStatus = `🔥 FIRE (${this.fireTimer.toFixed(1)}s)`;
+                else if (this.isExplosiveActive) bonusStatus = `💥 EXPLOSIVE (${this.explosiveTimer.toFixed(1)}s)`;
+                else if (this.hasBarrier) bonusStatus = `🛡️ BARRIER SHIELD ACTIVE`;
+                ctx.fillStyle = '#ffea00'; ctx.fillText(`ACTIVE BONUS : ${bonusStatus}`, 80, 550);
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Touch Controller to toggle Laser Rays', w / 2, 1140);
                 ctx.fillText('💡 DRAG THIS HUD BY HOLDING GRIP BUTTON', w / 2, 1180);
-                ctx.fillText('💡 THUMBSTICK UP/DOWN = SCALE FIELD', w / 2, 1220);
+                ctx.fillText('💡 STICK L/R = SCALE | STICK U/D = HEIGHT', w / 2, 1220);
                 this.hudTexture.needsUpdate = true;
             }
 
@@ -1146,6 +1199,7 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
+                // Fire Bonus Timer
                 if (this.isFireActive) {
                     this.fireTimer -= dt;
                     if (this.fireTimer <= 0) {
@@ -1156,7 +1210,25 @@
                     this.renderHUDCanvas();
                 }
 
+                // Explosive Bonus Timer
+                if (this.isExplosiveActive) {
+                    this.explosiveTimer -= dt;
+                    if (this.explosiveTimer <= 0) {
+                        this.explosiveTimer = 0;
+                        this.isExplosiveActive = false;
+                        this.balls.forEach(b => {
+                            b.mesh.material.emissive.setHex(0x00f0ff);
+                            if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0x00ffff);
+                        });
+                        this.setPaddleBonusState(false);
+                        showToast('Explosive Mode Expired', 'fa-bomb');
+                    }
+                    this.renderHUDCanvas();
+                }
+
                 const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
+
+                // --- POWER-UPS PICKUP PHYSICS ---
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1168,24 +1240,48 @@
                         const type = p.userData.type;
 
                         if (type === 'S') {
-                            this.fireTimer = 0;
                             this.setPaddleBonusState('SPEED'); 
-                            
                             const speedReductionFactor = Math.pow(1.05, 3);
                             this.speedMultiplier = Math.max(1.0, this.speedMultiplier / speedReductionFactor);
-                            if (this.ballVel.length() > 0) {
-                                this.ballVel.normalize().multiplyScalar(this.baseBallSpeed * this.speedMultiplier);
-                            }
-                            showToast('⚡ BONUS S: Speed Decremented by 3 Steps!', 'fa-gauge-simple-low');
+                            this.balls.forEach(b => {
+                                if (b.vel.length() > 0) b.vel.normalize().multiplyScalar(this.baseBallSpeed * this.speedMultiplier);
+                            });
+                            showToast('⚡ BONUS S: Speed Decremented!', 'fa-gauge-simple-low');
                         } else if (type === 'F') {
                             this.fireTimer = 8.0;
                             this.setPaddleBonusState('FIRE');
-                            showToast('🔥 BONUS F: Fire Mode Active! Pull Trigger to Shoot', 'fa-fire');
+                            showToast('🔥 BONUS F: Fire Mode Active!', 'fa-fire');
                         } else if (type === 'L') {
-                            this.fireTimer = 0;
                             this.setPaddleBonusState('LIFE');
                             this.lives++;
                             showToast('❤️ BONUS L: Extra Life Added!', 'fa-heart');
+                        } else if (type === 'X') {
+                            this.explosiveTimer = 8.0;
+                            this.isExplosiveActive = true;
+                            this.balls.forEach(b => {
+                                b.mesh.material.emissive.setHex(0xff0055);
+                                if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0055);
+                            });
+                            this.setPaddleBonusState('EXPLOSIVE');
+                            showToast('💥 BONUS X: Explosive Area Impact!', 'fa-burst');
+                        } else if (type === 'M') {
+                            // Multi-ball: Spawn 2 extra balls for each current ball
+                            const currentBalls = [...this.balls];
+                            currentBalls.forEach(b => {
+                                const spd = b.vel.length() || (this.baseBallSpeed * this.speedMultiplier);
+                                const angle1 = Math.atan2(b.vel.y, b.vel.x) + 0.43; // ~25 deg
+                                const angle2 = Math.atan2(b.vel.y, b.vel.x) - 0.43;
+
+                                const ball1 = this.createBallInstance(b.mesh.position.x, b.mesh.position.y, Math.cos(angle1) * spd, Math.sin(angle1) * spd);
+                                const ball2 = this.createBallInstance(b.mesh.position.x, b.mesh.position.y, Math.cos(angle2) * spd, Math.sin(angle2) * spd);
+                                this.balls.push(ball1, ball2);
+                            });
+                            showToast('🎱 BONUS M: Multi-Ball Activated!', 'fa-cubes');
+                        } else if (type === 'B') {
+                            this.hasBarrier = true;
+                            if (this.barrierMesh) this.barrierMesh.visible = true;
+                            this.setPaddleBonusState('BARRIER');
+                            showToast('🛡️ BONUS B: Safety Barrier Deployed!', 'fa-shield-halved');
                         }
 
                         this.fieldGroup.remove(p);
@@ -1202,6 +1298,7 @@
                     }
                 }
 
+                // --- BULLETS PHYSICS ---
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
                     const bullet = this.bullets[i];
                     bullet.position.y += 4.5 * dt;
@@ -1226,19 +1323,20 @@
                             b.userData.active = false;
                             b.visible = false;
                             this.particlePool.explode(b.position, b.userData.colorHex);
-                            
-                            if (b.userData.hasBonus) {
-                                this.spawnPowerUp(b.position, b.userData.hasBonus);
+
+                            if (this.isExplosiveActive) {
+                                this.triggerAreaExplosion(b.position);
+                            } else {
+                                if (b.userData.hasBonus) this.spawnPowerUp(b.position, b.userData.hasBonus);
+                                this.bricksGroup.remove(b);
+                                if (b.geometry) b.geometry.dispose();
+                                if (b.material) b.material.dispose();
+                                this.score += b.userData.points;
                             }
 
-                            this.bricksGroup.remove(b);
-                            if (b.geometry) b.geometry.dispose();
-                            if (b.material) b.material.dispose();
-
-                            this.score += b.userData.points;
                             audio.gunshot();
                             bulletHit = true;
-                            
+
                             if (this.getRemainingBricksCount() === 0) {
                                 this.advanceLevel();
                                 return;
@@ -1256,82 +1354,115 @@
                     }
                 }
 
-                this.ballMesh.position.x += this.ballVel.x * dt;
-                this.ballMesh.position.y += this.ballVel.y * dt;
-
+                // --- BALLS PHYSICS (MULTI-BALL SUPPORT) ---
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
-                if (this.ballMesh.position.x - halfCube <= -halfW) {
-                    this.ballMesh.position.x = -halfW + halfCube; this.ballVel.x = Math.abs(this.ballVel.x); audio.wallHit();
-                } else if (this.ballMesh.position.x + halfCube >= halfW) {
-                    this.ballMesh.position.x = halfW - halfCube; this.ballVel.x = -Math.abs(this.ballVel.x); audio.wallHit();
-                }
 
-                if (this.ballMesh.position.y + halfCube >= FIELD.topY) {
-                    this.ballMesh.position.y = FIELD.topY - halfCube; this.ballVel.y = -Math.abs(this.ballVel.y); audio.wallHit();
-                }
+                for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
+                    const ballObj = this.balls[bIdx];
+                    const bMesh = ballObj.mesh;
+                    const bVel = ballObj.vel;
 
-                if (this.ballMesh.position.y - halfCube <= FIELD.bottomY) {
-                    this.lives--; audio.lifeLost();
-                    this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
-                    if (this.lives <= 0) {
-                        this.triggerGameOver();
-                    } else {
-                        showToast(`Ball Lost! Lives Remaining: ${this.lives}`, 'fa-heart-crack');
-                        this.resetBallAndPaddle(); this.renderHUDCanvas();
-                        this.startLevelCountdown(() => { this.launchBall(); });
+                    bMesh.position.x += bVel.x * dt;
+                    bMesh.position.y += bVel.y * dt;
+
+                    // Wall Collisions
+                    if (bMesh.position.x - halfCube <= -halfW) {
+                        bMesh.position.x = -halfW + halfCube; bVel.x = Math.abs(bVel.x); audio.wallHit();
+                    } else if (bMesh.position.x + halfCube >= halfW) {
+                        bMesh.position.x = halfW - halfCube; bVel.x = -Math.abs(bVel.x); audio.wallHit();
                     }
-                    return;
-                }
 
-                const ballBox = new THREE.Box3().setFromObject(this.ballMesh);
-                if (padBox.intersectsBox(ballBox) && this.ballVel.y < 0) {
-                    this.ballVel.y = Math.abs(this.ballVel.y);
-                    const hitOffset = (this.ballMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
-                    const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
-                    this.ballVel.x = hitOffset * (currentSpeed * 0.85);
-                    this.ballVel.normalize().multiplyScalar(currentSpeed);
-                    audio.paddleHit();
-                }
+                    if (bMesh.position.y + halfCube >= FIELD.topY) {
+                        bMesh.position.y = FIELD.topY - halfCube; bVel.y = -Math.abs(bVel.y); audio.wallHit();
+                    }
 
-                const bricks = this.bricksGroup.children;
-                for (let i = bricks.length - 1; i >= 0; i--) {
-                    const b = bricks[i];
-                    if (!b || !b.visible || !b.userData || !b.userData.active) continue;
-                    const brickBox = new THREE.Box3().setFromObject(b);
-
-                    if (brickBox.intersectsBox(ballBox)) {
-                        b.userData.active = false;
-                        b.visible = false;
-                        this.particlePool.explode(b.position, b.userData.colorHex);
-                        
-                        if (b.userData.hasBonus) {
-                            this.spawnPowerUp(b.position, b.userData.hasBonus);
-                        }
-
-                        this.bricksGroup.remove(b);
-                        if (b.geometry) b.geometry.dispose();
-                        if (b.material) b.material.dispose();
-
-                        this.ballVel.y = -this.ballVel.y;
-                        this.score += b.userData.points;
-                        audio.gunshot();
-                        this.totalBricksHitInLife++;
-                        
-                        if (this.totalBricksHitInLife % 5 === 0) {
-                            this.speedMultiplier *= 1.05;
-                            const newSpeed = this.baseBallSpeed * this.speedMultiplier;
-                            this.ballVel.normalize().multiplyScalar(newSpeed);
-                            audio.speedBoost();
-                            showToast(`⚡ SPEED UP! Ball Speed: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
-                        }
-
-                        if (this.getRemainingBricksCount() === 0) {
-                            this.advanceLevel();
-                            return;
+                    // Bottom Hazard Line / Shield Check
+                    if (bMesh.position.y - halfCube <= FIELD.bottomY) {
+                        if (this.hasBarrier) {
+                            // Barrier absorbs impact!
+                            bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
+                            bVel.y = Math.abs(bVel.y);
+                            this.hasBarrier = false;
+                            if (this.barrierMesh) this.barrierMesh.visible = false;
+                            audio.shieldHit();
+                            showToast('🛡️ Shield Absorbed Ball Impact!', 'fa-shield');
                         } else {
-                            this.renderHUDCanvas();
+                            // Remove fallen ball
+                            this.fieldGroup.remove(bMesh);
+                            bMesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+                            this.balls.splice(bIdx, 1);
+
+                            // If ALL balls are lost, lose a life
+                            if (this.balls.length === 0) {
+                                this.lives--; audio.lifeLost();
+                                this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
+                                if (this.lives <= 0) {
+                                    this.triggerGameOver();
+                                } else {
+                                    showToast(`Ball Lost! Lives Remaining: ${this.lives}`, 'fa-heart-crack');
+                                    this.resetBallAndPaddle(); this.renderHUDCanvas();
+                                    this.startLevelCountdown(() => { this.launchBall(); });
+                                }
+                                return;
+                            }
+                            continue;
                         }
-                        break;
+                    }
+
+                    // Paddle Hit
+                    const ballBox = new THREE.Box3().setFromObject(bMesh);
+                    if (padBox.intersectsBox(ballBox) && bVel.y < 0) {
+                        bVel.y = Math.abs(bVel.y);
+                        const hitOffset = (bMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
+                        const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
+                        bVel.x = hitOffset * (currentSpeed * 0.85);
+                        bVel.normalize().multiplyScalar(currentSpeed);
+                        audio.paddleHit();
+                    }
+
+                    // Brick Hit
+                    const bricks = this.bricksGroup.children;
+                    for (let i = bricks.length - 1; i >= 0; i--) {
+                        const b = bricks[i];
+                        if (!b || !b.visible || !b.userData || !b.userData.active) continue;
+                        const brickBox = new THREE.Box3().setFromObject(b);
+
+                        if (brickBox.intersectsBox(ballBox)) {
+                            b.userData.active = false;
+                            b.visible = false;
+                            this.particlePool.explode(b.position, b.userData.colorHex);
+
+                            bVel.y = -bVel.y;
+
+                            if (this.isExplosiveActive) {
+                                this.triggerAreaExplosion(b.position);
+                            } else {
+                                if (b.userData.hasBonus) this.spawnPowerUp(b.position, b.userData.hasBonus);
+                                this.bricksGroup.remove(b);
+                                if (b.geometry) b.geometry.dispose();
+                                if (b.material) b.material.dispose();
+                                this.score += b.userData.points;
+                            }
+
+                            audio.gunshot();
+                            this.totalBricksHitInLife++;
+
+                            if (this.totalBricksHitInLife % 5 === 0) {
+                                this.speedMultiplier *= 1.05;
+                                const newSpeed = this.baseBallSpeed * this.speedMultiplier;
+                                this.balls.forEach(ball => ball.vel.normalize().multiplyScalar(newSpeed));
+                                audio.speedBoost();
+                                showToast(`⚡ SPEED UP! Ball Speed: ${(this.speedMultiplier).toFixed(2)}x`, 'fa-bolt');
+                            }
+
+                            if (this.getRemainingBricksCount() === 0) {
+                                this.advanceLevel();
+                                return;
+                            } else {
+                                this.renderHUDCanvas();
+                            }
+                            break;
+                        }
                     }
                 }
             }
@@ -1347,7 +1478,6 @@
                             if (inputSource.gamepad) {
                                 const gamepad = inputSource.gamepad;
 
-                                // Right Hand Button B Toggle
                                 if (inputSource.handedness === 'right') {
                                     const btnB = gamepad.buttons[5] || gamepad.buttons[1];
                                     if (btnB) {
@@ -1359,16 +1489,22 @@
                                     }
                                 }
 
-                                // THUMBSTICK UP/DOWN FIELD SCALING
                                 const axes = gamepad.axes;
                                 if (axes && axes.length >= 2) {
-                                    const axisY = (axes.length >= 4) ? axes[3] : axes[1];
-                                    if (Math.abs(axisY) > 0.25) {
-                                        // Push UP (negative Y) -> Increase Scale
-                                        // Push DOWN (positive Y) -> Decrease Scale
-                                        this.fieldScale -= axisY * 0.8 * dt;
+                                    const axisX = axes[0];
+                                    const axisY = axes[1];
+
+                                    if (Math.abs(axisX) > 0.25) {
+                                        this.fieldScale += axisX * 0.8 * dt;
                                         this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
                                         this.fieldGroup.scale.setScalar(this.fieldScale);
+                                        this.renderHUDCanvas();
+                                    }
+
+                                    if (Math.abs(axisY) > 0.25) {
+                                        this.fieldPosY -= axisY * 0.8 * dt;
+                                        this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
+                                        this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
                                         this.renderHUDCanvas();
                                     }
                                 }
@@ -1402,7 +1538,6 @@
                             this.rayDir.set(0, 0, -1).applyMatrix4(this.tempMatrix);
                             const ray = new THREE.Ray(this.rayOrigin, this.rayDir);
                             if (ray.intersectPlane(this.playfieldPlane, this.targetPoint)) {
-                                // Scale compensation for Ray position targeting
                                 this.paddleX = this.targetPoint.x / this.fieldScale;
                             }
                         } else if (this.controlMode === 'TILT') {
@@ -1428,7 +1563,6 @@
                 this.updatePaddleAndControllers(dt);
                 this.updatePhysics(dt);
                 this.particlePool.update(dt);
-                if (this.ballLight) this.ballLight.intensity = 1.2 + Math.sin(performance.now() * 0.01) * 0.4;
                 this.renderer.render(this.scene, this.camera);
             }
         }
