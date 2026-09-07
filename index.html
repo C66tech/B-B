@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.2.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v3.3.0</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.2.0
+                            v3.3.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,9 +99,9 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.2.0";
+        const VERSION = "v3.3.0";
         const MAX_LEVELS = 10;
-        const INITIAL_PRNG_SEED = 20260906; // FIXED HARDCODED SEED
+        const INITIAL_PRNG_SEED = 20260906;
 
         function showToast(message, iconClass = "fa-circle-info") {
             const container = document.getElementById('toast-container');
@@ -370,7 +370,7 @@
                 this.isCountdownActive = false;
                 this.countdownTimer = null;
 
-                // Power-up States
+                // Power-up Cumulative States
                 this.isFireActive = false;
                 this.fireTimer = 0;
                 this.isExplosiveActive = false;
@@ -465,7 +465,6 @@
                 backPlane.position.set(0, FIELD.centerY, -FIELD.depth / 2);
                 this.fieldGroup.add(backPlane);
 
-                // BOTTOM HAZARD BAR (Normally BLUE, Turns ROSA/MAGENTA when Barrier B is Active)
                 const hazardGeo = new THREE.BoxGeometry(FIELD.width, 0.02, FIELD.depth);
                 this.hazardMat = new THREE.MeshStandardMaterial({ color: 0x0066ff, emissive: 0x0066ff, emissiveIntensity: 0.8 });
                 this.hazardBar = new THREE.Mesh(hazardGeo, this.hazardMat);
@@ -479,10 +478,10 @@
 
             setHazardBarState(isBarrierActive) {
                 if (isBarrierActive) {
-                    this.hazardMat.color.setHex(0xff00ff); // ROSA / MAGENTA BRIGHT
+                    this.hazardMat.color.setHex(0xff00ff);
                     this.hazardMat.emissive.setHex(0xff00ff);
                 } else {
-                    this.hazardMat.color.setHex(0x0066ff); // BLU STANDARD
+                    this.hazardMat.color.setHex(0x0066ff);
                     this.hazardMat.emissive.setHex(0x0066ff);
                 }
             }
@@ -588,10 +587,10 @@
 
                     if (roll < 0.10) bonusType = 'L';      // Extra Life
                     else if (roll < 0.25) bonusType = 'M'; // Multi-Ball (+1 Extra)
-                    else if (roll < 0.40) bonusType = 'X'; // Explosive Ball (Full Red)
-                    else if (roll < 0.55) bonusType = 'B'; // Barrier Shield (Rosa)
+                    else if (roll < 0.40) bonusType = 'X'; // Explosive Ball
+                    else if (roll < 0.55) bonusType = 'B'; // Barrier Shield
                     else if (roll < 0.75) bonusType = 'S'; // Speed Slow
-                    else bonusType = 'F';                  // Fire Mode (Arancione Full)
+                    else bonusType = 'F';                  // Fire Mode
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -627,29 +626,31 @@
                 return { mesh, vel: new THREE.Vector3(velX, velY, 0) };
             }
 
-            setPaddleBonusState(bonusType) {
-                if (bonusType === 'FIRE') {
-                    this.isFireActive = true;
+            updatePaddleVisuals(latestType) {
+                // Non-destructive paddle highlight on last pickup, while maintaining all active effects
+                if (latestType === 'FIRE') {
                     this.paddleMat.color.setHex(0xff6600);
                     this.paddleMat.emissive.setHex(0x993300);
-                } else if (bonusType === 'SPEED') {
-                    this.isFireActive = false;
+                } else if (latestType === 'SPEED') {
                     this.paddleMat.color.setHex(0x00f0ff);
                     this.paddleMat.emissive.setHex(0x0077aa);
-                } else if (bonusType === 'LIFE') {
-                    this.isFireActive = false;
+                } else if (latestType === 'LIFE') {
                     this.paddleMat.color.setHex(0x00ff88);
                     this.paddleMat.emissive.setHex(0x008844);
-                } else if (bonusType === 'EXPLOSIVE') {
-                    this.isFireActive = false;
+                } else if (latestType === 'EXPLOSIVE') {
                     this.paddleMat.color.setHex(0xff0000);
                     this.paddleMat.emissive.setHex(0x990000);
-                } else if (bonusType === 'BARRIER') {
-                    this.isFireActive = false;
+                } else if (latestType === 'BARRIER') {
                     this.paddleMat.color.setHex(0xff007f);
                     this.paddleMat.emissive.setHex(0x99004c);
-                } else {
-                    this.isFireActive = false;
+                }
+            }
+
+            refreshPaddleVisuals() {
+                if (this.isFireActive) this.updatePaddleVisuals('FIRE');
+                else if (this.isExplosiveActive) this.updatePaddleVisuals('EXPLOSIVE');
+                else if (this.hasBarrier) this.updatePaddleVisuals('BARRIER');
+                else {
                     this.paddleMat.color.setHex(0xffffff);
                     this.paddleMat.emissive.setHex(0x333333);
                 }
@@ -778,11 +779,12 @@
                 this.balls = [];
 
                 this.fireTimer = 0;
+                this.isFireActive = false;
                 this.explosiveTimer = 0;
                 this.isExplosiveActive = false;
                 this.hasBarrier = false;
                 this.setHazardBarState(false);
-                this.setPaddleBonusState(false);
+                this.refreshPaddleVisuals();
             }
 
             resetBallAndPaddle() {
@@ -902,7 +904,7 @@
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
                 this.hudGroup.position.set(-1.5, 1.5, -1.2);
-                this.hudGroup.rotation.set(0, Math.PI / 180 * 22.5, 0); // Perpendicular to floor
+                this.hudGroup.rotation.set(0, Math.PI / 180 * 22.5, 0);
 
                 this.hudCanvas = document.createElement('canvas');
                 this.hudCanvas.width = 1024; this.hudCanvas.height = 1300;
@@ -980,11 +982,14 @@
                 const modeText = this.controlMode === 'RAY' ? 'RAY (1:1 Intersection)' : 'TILT (Wrist Tilt)';
                 ctx.fillText(`PAD MODE     : ${modeText}`, 80, 500);
 
-                let bonusStatus = 'NONE';
-                if (this.isFireActive) bonusStatus = `🔥 FIRE (${this.fireTimer.toFixed(1)}s)`;
-                else if (this.isExplosiveActive) bonusStatus = `💥 EXPLOSIVE (${this.explosiveTimer.toFixed(1)}s)`;
-                else if (this.hasBarrier) bonusStatus = `🛡️ BARRIER SHIELD ACTIVE`;
-                ctx.fillStyle = '#ffea00'; ctx.fillText(`ACTIVE BONUS : ${bonusStatus}`, 80, 550);
+                // Multi-buff active list display
+                let activeBuffs = [];
+                if (this.isFireActive) activeBuffs.push(`🔥 F(${this.fireTimer.toFixed(1)}s)`);
+                if (this.isExplosiveActive) activeBuffs.push(`💥 X(${this.explosiveTimer.toFixed(1)}s)`);
+                if (this.hasBarrier) activeBuffs.push(`🛡️ B`);
+                let bonusStatus = activeBuffs.length > 0 ? activeBuffs.join(' ') : 'NONE';
+
+                ctx.fillStyle = '#ffea00'; ctx.fillText(`ACTIVE BUFFS : ${bonusStatus}`, 80, 550);
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Touch Controller to toggle Laser Rays', w / 2, 1140);
@@ -993,11 +998,11 @@
                 this.hudTexture.needsUpdate = true;
             }
 
-            // RIGHT SPECULAR BONUS LEGEND HUD
+            // RIGHT SPECULAR BONUS LEGEND HUD (ENGLISH TRANSLATED)
             initBonusLegendHUD() {
                 this.rightHudGroup = new THREE.Group();
                 this.rightHudGroup.position.set(1.5, 1.5, -1.2);
-                this.rightHudGroup.rotation.set(0, -Math.PI / 180 * 22.5, 0); // Perpendicular to floor
+                this.rightHudGroup.rotation.set(0, -Math.PI / 180 * 22.5, 0);
 
                 this.rightHudCanvas = document.createElement('canvas');
                 this.rightHudCanvas.width = 1024; this.rightHudCanvas.height = 1300;
@@ -1035,12 +1040,12 @@
                 ctx.strokeStyle = 'rgba(255, 0, 212, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
 
                 const bonuses = [
-                    { tag: 'F', name: 'FIRE MODE', color: '#ff6600', desc: 'Sparo doppio laser. Premi il grilletto per sparare.' },
-                    { tag: 'X', name: 'EXPLOSIVE', color: '#ff0000', desc: 'Palla esplosiva: distrugge tutti i mattoni adiacenti.' },
-                    { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: 'Attiva la sponda rosa inferiore salva-palla (1 usata).' },
-                    { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Genera istantaneamente 1 palla extra in campo.' },
-                    { tag: 'S', name: 'SLOW DOWN', color: '#00f0ff', desc: 'Riduce la velocità della palla per miglior controllo.' },
-                    { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Aggiunge immediatamente +1 vita extra alla riserva.' }
+                    { tag: 'F', name: 'FIRE MODE', color: '#ff6600', desc: 'Dual laser cannons. Pull trigger to fire lasers.' },
+                    { tag: 'X', name: 'EXPLOSIVE', color: '#ff0000', desc: 'Explosive ball: destroys all adjacent bricks on hit.' },
+                    { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: 'Deploys pink bottom safety barrier (1-time use).' },
+                    { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Instantly spawns 1 extra ball into play.' },
+                    { tag: 'S', name: 'SLOW DOWN', color: '#00f0ff', desc: 'Reduces ball speed for better precision.' },
+                    { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Instantly grants +1 extra life to reserve.' }
                 ];
 
                 const startY = 180;
@@ -1071,7 +1076,7 @@
                 });
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText('💡 Raccogli le gemme cadenti con la racchetta', w / 2, 1200);
+                ctx.fillText('💡 Catch falling power-up gems with your paddle', w / 2, 1200);
 
                 this.rightHudTexture.needsUpdate = true;
             }
@@ -1177,7 +1182,6 @@
                     const ctrlPos = new THREE.Vector3();
                     controller.matrixWorld.decompose(ctrlPos, new THREE.Quaternion(), new THREE.Vector3());
 
-                    // Store XZ Offset relative to controller position
                     this.hudDragOffsetXZ.set(
                         targetGroup.position.x - ctrlPos.x,
                         targetGroup.position.z - ctrlPos.z
@@ -1236,7 +1240,6 @@
             }
 
             startGame() {
-                // RESET SEED AT THE START OF EVERY NEW GAME (DETERMINISTIC LEVELS)
                 this.prng.reset(INITIAL_PRNG_SEED);
                 this.gameState = 'PLAYING';
                 this.level = 1; this.score = 0; this.lives = 3; this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
@@ -1301,16 +1304,19 @@
             updatePhysics(dt) {
                 if (this.gameState !== 'PLAYING' || this.isCountdownActive || this.isLevelTransitioning) return;
 
+                // Independent Fire Timer
                 if (this.isFireActive) {
                     this.fireTimer -= dt;
                     if (this.fireTimer <= 0) {
                         this.fireTimer = 0;
-                        this.setPaddleBonusState(false);
+                        this.isFireActive = false;
+                        this.refreshPaddleVisuals();
                         showToast('Fire Mode Expired', 'fa-fire-extinguisher');
                     }
                     this.renderHUDCanvas();
                 }
 
+                // Independent Explosive Timer
                 if (this.isExplosiveActive) {
                     this.explosiveTimer -= dt;
                     if (this.explosiveTimer <= 0) {
@@ -1320,7 +1326,7 @@
                             b.mesh.material.emissive.setHex(0x00f0ff);
                             if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0x00ffff);
                         });
-                        this.setPaddleBonusState(false);
+                        this.refreshPaddleVisuals();
                         showToast('Explosive Mode Expired', 'fa-bomb');
                     }
                     this.renderHUDCanvas();
@@ -1328,7 +1334,7 @@
 
                 const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
 
-                // POWER-UP PICKUPS
+                // POWER-UP PICKUPS (CUMULATIVE BUFFS)
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1340,7 +1346,7 @@
                         const type = p.userData.type;
 
                         if (type === 'S') {
-                            this.setPaddleBonusState('SPEED'); 
+                            this.updatePaddleVisuals('SPEED'); 
                             const speedReductionFactor = Math.pow(1.05, 3);
                             this.speedMultiplier = Math.max(1.0, this.speedMultiplier / speedReductionFactor);
                             this.balls.forEach(b => {
@@ -1349,10 +1355,11 @@
                             showToast('⚡ BONUS S: Speed Decremented!', 'fa-gauge-simple-low');
                         } else if (type === 'F') {
                             this.fireTimer = 8.0;
-                            this.setPaddleBonusState('FIRE');
+                            this.isFireActive = true;
+                            this.updatePaddleVisuals('FIRE');
                             showToast('🔥 BONUS F: Fire Mode Active!', 'fa-fire');
                         } else if (type === 'L') {
-                            this.setPaddleBonusState('LIFE');
+                            this.updatePaddleVisuals('LIFE');
                             this.lives++;
                             showToast('❤️ BONUS L: Extra Life Added!', 'fa-heart');
                         } else if (type === 'X') {
@@ -1362,7 +1369,7 @@
                                 b.mesh.material.emissive.setHex(0xff0000);
                                 if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0000);
                             });
-                            this.setPaddleBonusState('EXPLOSIVE');
+                            this.updatePaddleVisuals('EXPLOSIVE');
                             showToast('💥 BONUS X: Explosive Area Impact!', 'fa-burst');
                         } else if (type === 'M') {
                             if (this.balls.length > 0) {
@@ -1383,7 +1390,7 @@
                         } else if (type === 'B') {
                             this.hasBarrier = true;
                             this.setHazardBarState(true);
-                            this.setPaddleBonusState('BARRIER');
+                            this.updatePaddleVisuals('BARRIER');
                             showToast('🛡️ BONUS B: Safety Barrier Deployed!', 'fa-shield-halved');
                         }
 
@@ -1483,7 +1490,8 @@
                             bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
                             bVel.y = Math.abs(bVel.y);
                             this.hasBarrier = false;
-                            this.setHazardBarState(false); // Restore Normal Blue
+                            this.setHazardBarState(false);
+                            this.refreshPaddleVisuals();
                             audio.shieldHit();
                             showToast('🛡️ Shield Absorbed Ball Impact!', 'fa-shield');
                         } else {
@@ -1614,17 +1622,14 @@
                         }
                     }
 
-                    // DRAG HUDS STRICTLY ON XZ PLANE (PERPENDICULAR TO FLOOR)
                     if (this.isDraggingHUD && this.hudDragController && this.hudDragTargetGroup) {
                         const ctrlPos = new THREE.Vector3();
                         const ctrlQuat = new THREE.Quaternion();
                         this.hudDragController.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
 
-                        // Update X and Z positions while locking Y
                         this.hudDragTargetGroup.position.x = ctrlPos.x + this.hudDragOffsetXZ.x;
                         this.hudDragTargetGroup.position.z = ctrlPos.z + this.hudDragOffsetXZ.y;
 
-                        // Ensure Y rotation faces controller while Pitch/Roll remain 0 (Perpendicular to floor)
                         const euler = new THREE.Euler().setFromQuaternion(ctrlQuat, 'YXZ');
                         this.hudDragTargetGroup.rotation.set(0, euler.y, 0);
                     }
