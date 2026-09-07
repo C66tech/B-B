@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.0.0 - WebXR 3D Spatial Arcade</title>
+    <title>ARkanium v3.2.0 - WebXR 3D Spatial Arcade</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.0.0
+                            v3.2.0
                         </span>
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5">3D WebXR Spatial Arcade Experience (AR Passthrough &amp; Immersive VR)</p>
@@ -99,9 +99,9 @@
     <script>
         // --- GAME CONSTANTS & CONFIGURATION ---
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.0.0";
+        const VERSION = "v3.2.0";
         const MAX_LEVELS = 10;
-        const INITIAL_PRNG_SEED = 20260906;
+        const INITIAL_PRNG_SEED = 20260906; // FIXED HARDCODED SEED
 
         function showToast(message, iconClass = "fa-circle-info") {
             const container = document.getElementById('toast-container');
@@ -388,10 +388,11 @@
                 this.showLasersInGame = false;
                 this.prevButtonBState = false;
 
+                // Multi-HUD Dragging State
                 this.isDraggingHUD = false;
                 this.hudDragController = null;
-                this.hudDragOffset = new THREE.Vector3();
-                this.hudDragQuatOffset = new THREE.Quaternion();
+                this.hudDragTargetGroup = null;
+                this.hudDragOffsetXZ = new THREE.Vector2();
 
                 this.interactiveObjects = [];
 
@@ -409,6 +410,7 @@
                 this.initLobbyPanel();
                 this.initGameOverPanel();
                 this.initDebugHUD();
+                this.initBonusLegendHUD();
                 this.particlePool = new QuestPyrotechnicParticlePool(this.fieldGroup);
                 this.initXRControllers();
                 this.initWebXRLauncher();
@@ -463,9 +465,9 @@
                 backPlane.position.set(0, FIELD.centerY, -FIELD.depth / 2);
                 this.fieldGroup.add(backPlane);
 
-                // BOTTOM HAZARD BAR (Changes Color to Pink when Barrier is active!)
+                // BOTTOM HAZARD BAR (Normally BLUE, Turns ROSA/MAGENTA when Barrier B is Active)
                 const hazardGeo = new THREE.BoxGeometry(FIELD.width, 0.02, FIELD.depth);
-                this.hazardMat = new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0xff0044, emissiveIntensity: 0.7 });
+                this.hazardMat = new THREE.MeshStandardMaterial({ color: 0x0066ff, emissive: 0x0066ff, emissiveIntensity: 0.8 });
                 this.hazardBar = new THREE.Mesh(hazardGeo, this.hazardMat);
                 this.hazardBar.position.set(0, FIELD.bottomY, 0);
                 this.fieldGroup.add(this.hazardBar);
@@ -477,11 +479,11 @@
 
             setHazardBarState(isBarrierActive) {
                 if (isBarrierActive) {
-                    this.hazardMat.color.setHex(0xff007f); // ROSA
-                    this.hazardMat.emissive.setHex(0xff007f);
+                    this.hazardMat.color.setHex(0xff00ff); // ROSA / MAGENTA BRIGHT
+                    this.hazardMat.emissive.setHex(0xff00ff);
                 } else {
-                    this.hazardMat.color.setHex(0xff0044); // ROSSO standard
-                    this.hazardMat.emissive.setHex(0xff0044);
+                    this.hazardMat.color.setHex(0x0066ff); // BLU STANDARD
+                    this.hazardMat.emissive.setHex(0x0066ff);
                 }
             }
 
@@ -584,12 +586,12 @@
                     const roll = this.prng.next();
                     let bonusType = 'F';
 
-                    if (roll < 0.10) bonusType = 'L';      // 10% Extra Life
-                    else if (roll < 0.25) bonusType = 'M'; // 15% Multi-Ball (Single Extra Ball)
-                    else if (roll < 0.40) bonusType = 'X'; // 15% Explosive Ball (Full Red)
-                    else if (roll < 0.55) bonusType = 'B'; // 15% Barrier Shield (Rosa)
-                    else if (roll < 0.75) bonusType = 'S'; // 20% Speed Slow
-                    else bonusType = 'F';                  // 25% Fire Mode (Arancione Full)
+                    if (roll < 0.10) bonusType = 'L';      // Extra Life
+                    else if (roll < 0.25) bonusType = 'M'; // Multi-Ball (+1 Extra)
+                    else if (roll < 0.40) bonusType = 'X'; // Explosive Ball (Full Red)
+                    else if (roll < 0.55) bonusType = 'B'; // Barrier Shield (Rosa)
+                    else if (roll < 0.75) bonusType = 'S'; // Speed Slow
+                    else bonusType = 'F';                  // Fire Mode (Arancione Full)
 
                     targetBrick.userData.hasBonus = bonusType;
                 }
@@ -626,7 +628,7 @@
             }
 
             setPaddleBonusState(bonusType) {
-                if (bonusType === 'FIRE') { // F: ARANCIONE FULL
+                if (bonusType === 'FIRE') {
                     this.isFireActive = true;
                     this.paddleMat.color.setHex(0xff6600);
                     this.paddleMat.emissive.setHex(0x993300);
@@ -638,11 +640,11 @@
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0x00ff88);
                     this.paddleMat.emissive.setHex(0x008844);
-                } else if (bonusType === 'EXPLOSIVE') { // X: ROSSO FULL
+                } else if (bonusType === 'EXPLOSIVE') {
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0xff0000);
                     this.paddleMat.emissive.setHex(0x990000);
-                } else if (bonusType === 'BARRIER') { // B: ROSA
+                } else if (bonusType === 'BARRIER') {
                     this.isFireActive = false;
                     this.paddleMat.color.setHex(0xff007f);
                     this.paddleMat.emissive.setHex(0x99004c);
@@ -660,13 +662,13 @@
                 c.width = 128; c.height = 128;
                 const ctx = c.getContext('2d');
 
-                let colorHex = '#ff6600'; // Default Orange
-                if (type === 'F') colorHex = '#ff6600';      // Arancione Full
-                else if (type === 'X') colorHex = '#ff0000'; // Rosso Full
-                else if (type === 'B') colorHex = '#ff007f'; // Rosa
-                else if (type === 'S') colorHex = '#00f0ff'; // Cyan
-                else if (type === 'L') colorHex = '#00ff88'; // Green
-                else if (type === 'M') colorHex = '#a855f7'; // Purple
+                let colorHex = '#ff6600';
+                if (type === 'F') colorHex = '#ff6600';
+                else if (type === 'X') colorHex = '#ff0000';
+                else if (type === 'B') colorHex = '#ff007f';
+                else if (type === 'S') colorHex = '#00f0ff';
+                else if (type === 'L') colorHex = '#00ff88';
+                else if (type === 'M') colorHex = '#a855f7';
 
                 ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 128, 128);
                 ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 118, 118);
@@ -788,7 +790,6 @@
                 this.paddleMesh.position.x = 0;
                 this.clearPowerUpsAndBullets();
 
-                // Create initial single ball
                 const mainBall = this.createBallInstance(0, FIELD.bottomY + 0.30, 0, 0);
                 this.balls.push(mainBall);
             }
@@ -897,10 +898,11 @@
                 this.gameOverTexture.needsUpdate = true;
             }
 
+            // LEFT DEBUG & CONTROL HUD
             initDebugHUD() {
                 this.hudGroup = new THREE.Group();
                 this.hudGroup.position.set(-1.5, 1.5, -1.2);
-                this.hudGroup.rotation.y = Math.PI / 180 * 22.5;
+                this.hudGroup.rotation.set(0, Math.PI / 180 * 22.5, 0); // Perpendicular to floor
 
                 this.hudCanvas = document.createElement('canvas');
                 this.hudCanvas.width = 1024; this.hudCanvas.height = 1300;
@@ -986,9 +988,92 @@
 
                 ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText('Press B Button on Touch Controller to toggle Laser Rays', w / 2, 1140);
-                ctx.fillText('💡 DRAG THIS HUD BY HOLDING GRIP BUTTON', w / 2, 1180);
+                ctx.fillText('💡 DRAG THIS HUD ON XZ PLANE WITH GRIP BUTTON', w / 2, 1180);
                 ctx.fillText('💡 STICK L/R = SCALE | STICK U/D = HEIGHT', w / 2, 1220);
                 this.hudTexture.needsUpdate = true;
+            }
+
+            // RIGHT SPECULAR BONUS LEGEND HUD
+            initBonusLegendHUD() {
+                this.rightHudGroup = new THREE.Group();
+                this.rightHudGroup.position.set(1.5, 1.5, -1.2);
+                this.rightHudGroup.rotation.set(0, -Math.PI / 180 * 22.5, 0); // Perpendicular to floor
+
+                this.rightHudCanvas = document.createElement('canvas');
+                this.rightHudCanvas.width = 1024; this.rightHudCanvas.height = 1300;
+                this.rightHudCtx = this.rightHudCanvas.getContext('2d');
+                this.rightHudTexture = new THREE.CanvasTexture(this.rightHudCanvas);
+                this.rightHudTexture.minFilter = THREE.LinearFilter;
+
+                const geo = new THREE.PlaneGeometry(1.1, 1.4);
+                const mat = new THREE.MeshBasicMaterial({ map: this.rightHudTexture, transparent: true, side: THREE.DoubleSide });
+                this.rightHudMesh = new THREE.Mesh(geo, mat);
+                this.rightHudMesh.userData = { isRightHUD: true };
+                this.rightHudGroup.add(this.rightHudMesh);
+
+                const backMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
+                const backPlate = new THREE.Mesh(new THREE.BoxGeometry(1.14, 1.44, 0.02), backMat);
+                backPlate.position.z = -0.012;
+                this.rightHudGroup.add(backPlate);
+                this.scene.add(this.rightHudGroup);
+
+                this.renderRightHUDCanvas();
+            }
+
+            renderRightHUDCanvas() {
+                if (!this.rightHudCtx) return;
+                const ctx = this.rightHudCtx;
+                const w = 1024; const h = 1300;
+                ctx.clearRect(0, 0, w, h);
+
+                ctx.fillStyle = 'rgba(10, 16, 32, 0.94)'; ctx.strokeStyle = '#ff00d4'; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.roundRect(20, 20, w - 40, h - 40, 28); ctx.fill(); ctx.stroke();
+
+                ctx.textAlign = 'center'; ctx.fillStyle = '#ff00d4'; ctx.font = 'bold 44px sans-serif'; ctx.fillText('BONUS & POWER-UPS', w / 2, 80);
+                ctx.font = 'bold 26px monospace'; ctx.fillStyle = '#00f0ff'; ctx.fillText('SYSTEM REFERENCE GUIDE', w / 2, 125);
+
+                ctx.strokeStyle = 'rgba(255, 0, 212, 0.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(50, 145); ctx.lineTo(w - 50, 145); ctx.stroke();
+
+                const bonuses = [
+                    { tag: 'F', name: 'FIRE MODE', color: '#ff6600', desc: 'Sparo doppio laser. Premi il grilletto per sparare.' },
+                    { tag: 'X', name: 'EXPLOSIVE', color: '#ff0000', desc: 'Palla esplosiva: distrugge tutti i mattoni adiacenti.' },
+                    { tag: 'B', name: 'BARRIER', color: '#ff007f', desc: 'Attiva la sponda rosa inferiore salva-palla (1 usata).' },
+                    { tag: 'M', name: 'MULTI-BALL', color: '#a855f7', desc: 'Genera istantaneamente 1 palla extra in campo.' },
+                    { tag: 'S', name: 'SLOW DOWN', color: '#00f0ff', desc: 'Riduce la velocità della palla per miglior controllo.' },
+                    { tag: 'L', name: 'EXTRA LIFE', color: '#00ff88', desc: 'Aggiunge immediatamente +1 vita extra alla riserva.' }
+                ];
+
+                const startY = 180;
+                const itemH = 160;
+
+                bonuses.forEach((b, idx) => {
+                    const y = startY + (idx * itemH);
+
+                    ctx.fillStyle = b.color;
+                    ctx.beginPath(); ctx.roundRect(60, y, 100, 100, 18); ctx.fill();
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 68px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(b.tag, 110, y + 50);
+
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'alphabetic';
+                    ctx.fillStyle = b.color;
+                    ctx.font = 'bold 32px sans-serif';
+                    ctx.fillText(b.name, 185, y + 42);
+
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = '22px sans-serif';
+                    ctx.fillText(b.desc, 185, y + 80);
+                });
+
+                ctx.fillStyle = '#94a3b8'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('💡 Raccogli le gemme cadenti con la racchetta', w / 2, 1200);
+
+                this.rightHudTexture.needsUpdate = true;
             }
 
             initXRControllers() {
@@ -1078,20 +1163,34 @@
                 this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
-                const intersects = this.raycaster.intersectObject(this.hudMesh, true);
-                if (intersects.length > 0) {
-                    this.isDraggingHUD = true; this.hudDragController = controller;
-                    const ctrlPos = new THREE.Vector3(); const ctrlQuat = new THREE.Quaternion();
-                    controller.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
-                    this.hudDragOffset.copy(this.hudGroup.position).sub(ctrlPos);
-                    this.hudDragQuatOffset.copy(ctrlQuat).invert().multiply(this.hudGroup.quaternion);
-                    showToast('HUD Dragging Active', 'fa-hand-rock');
+                const intersectsLeft = this.raycaster.intersectObject(this.hudMesh, true);
+                const intersectsRight = this.raycaster.intersectObject(this.rightHudMesh, true);
+
+                let targetGroup = null;
+                if (intersectsLeft.length > 0) targetGroup = this.hudGroup;
+                else if (intersectsRight.length > 0) targetGroup = this.rightHudGroup;
+
+                if (targetGroup) {
+                    this.isDraggingHUD = true;
+                    this.hudDragController = controller;
+                    this.hudDragTargetGroup = targetGroup;
+                    const ctrlPos = new THREE.Vector3();
+                    controller.matrixWorld.decompose(ctrlPos, new THREE.Quaternion(), new THREE.Vector3());
+
+                    // Store XZ Offset relative to controller position
+                    this.hudDragOffsetXZ.set(
+                        targetGroup.position.x - ctrlPos.x,
+                        targetGroup.position.z - ctrlPos.z
+                    );
+                    showToast('HUD Dragging Active (XZ Plane)', 'fa-hand-rock');
                 }
             }
 
             onXRSqueezeEnd(event) {
                 if (this.isDraggingHUD && event.target === this.hudDragController) {
-                    this.isDraggingHUD = false; this.hudDragController = null;
+                    this.isDraggingHUD = false;
+                    this.hudDragController = null;
+                    this.hudDragTargetGroup = null;
                     showToast('HUD Repositioned', 'fa-location-dot');
                 }
             }
@@ -1137,6 +1236,7 @@
             }
 
             startGame() {
+                // RESET SEED AT THE START OF EVERY NEW GAME (DETERMINISTIC LEVELS)
                 this.prng.reset(INITIAL_PRNG_SEED);
                 this.gameState = 'PLAYING';
                 this.level = 1; this.score = 0; this.lives = 3; this.speedMultiplier = 1.0; this.totalBricksHitInLife = 0;
@@ -1259,13 +1359,12 @@
                             this.explosiveTimer = 8.0;
                             this.isExplosiveActive = true;
                             this.balls.forEach(b => {
-                                b.mesh.material.emissive.setHex(0xff0000); // ROSSO FULL
+                                b.mesh.material.emissive.setHex(0xff0000);
                                 if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0000);
                             });
                             this.setPaddleBonusState('EXPLOSIVE');
                             showToast('💥 BONUS X: Explosive Area Impact!', 'fa-burst');
                         } else if (type === 'M') {
-                            // FIX: Produce ESATTAMENTE UNA SOLA palla extra!
                             if (this.balls.length > 0) {
                                 const refBall = this.balls[0];
                                 const spd = refBall.vel.length() || (this.baseBallSpeed * this.speedMultiplier);
@@ -1283,7 +1382,7 @@
                             showToast('🎱 BONUS M: 1 Extra Ball Added!', 'fa-cubes');
                         } else if (type === 'B') {
                             this.hasBarrier = true;
-                            this.setHazardBarState(true); // Cambia sponda in ROSA!
+                            this.setHazardBarState(true);
                             this.setPaddleBonusState('BARRIER');
                             showToast('🛡️ BONUS B: Safety Barrier Deployed!', 'fa-shield-halved');
                         }
@@ -1379,14 +1478,12 @@
                         bMesh.position.y = FIELD.topY - halfCube; bVel.y = -Math.abs(bVel.y); audio.wallHit();
                     }
 
-                    // BOTTOM HAZARD LINE & BARRIER CHECK
                     if (bMesh.position.y - halfCube <= FIELD.bottomY) {
                         if (this.hasBarrier) {
-                            // Barrier absorbs impact! Reset color back to standard red
                             bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
                             bVel.y = Math.abs(bVel.y);
                             this.hasBarrier = false;
-                            this.setHazardBarState(false); // Torna ROSSO!
+                            this.setHazardBarState(false); // Restore Normal Blue
                             audio.shieldHit();
                             showToast('🛡️ Shield Absorbed Ball Impact!', 'fa-shield');
                         } else {
@@ -1488,10 +1585,8 @@
                                     }
                                 }
 
-                                // FIX MULTI-PLATFORM WEBXR THUMBSTICK AXES READING
                                 const axes = gamepad.axes;
                                 if (axes && axes.length >= 2) {
-                                    // Meta Quest Touch Controller Maps Thumbstick to axes[2] & axes[3]
                                     let axisX = 0, axisY = 0;
                                     if (axes.length >= 4) {
                                         axisX = axes[2];
@@ -1501,7 +1596,6 @@
                                         axisY = axes[1];
                                     }
 
-                                    // Left / Right -> Field Scaling
                                     if (Math.abs(axisX) > 0.20) {
                                         this.fieldScale += axisX * 0.8 * dt;
                                         this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
@@ -1509,7 +1603,6 @@
                                         this.renderHUDCanvas();
                                     }
 
-                                    // Up / Down -> Vertical Position (Y)
                                     if (Math.abs(axisY) > 0.20) {
                                         this.fieldPosY -= axisY * 0.8 * dt;
                                         this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
@@ -1521,11 +1614,19 @@
                         }
                     }
 
-                    if (this.isDraggingHUD && this.hudDragController) {
-                        const ctrlPos = new THREE.Vector3(); const ctrlQuat = new THREE.Quaternion();
+                    // DRAG HUDS STRICTLY ON XZ PLANE (PERPENDICULAR TO FLOOR)
+                    if (this.isDraggingHUD && this.hudDragController && this.hudDragTargetGroup) {
+                        const ctrlPos = new THREE.Vector3();
+                        const ctrlQuat = new THREE.Quaternion();
                         this.hudDragController.matrixWorld.decompose(ctrlPos, ctrlQuat, new THREE.Vector3());
-                        this.hudGroup.position.copy(ctrlPos).add(this.hudDragOffset);
-                        this.hudGroup.quaternion.copy(ctrlQuat).multiply(this.hudDragQuatOffset);
+
+                        // Update X and Z positions while locking Y
+                        this.hudDragTargetGroup.position.x = ctrlPos.x + this.hudDragOffsetXZ.x;
+                        this.hudDragTargetGroup.position.z = ctrlPos.z + this.hudDragOffsetXZ.y;
+
+                        // Ensure Y rotation faces controller while Pitch/Roll remain 0 (Perpendicular to floor)
+                        const euler = new THREE.Euler().setFromQuaternion(ctrlQuat, 'YXZ');
+                        this.hudDragTargetGroup.rotation.set(0, euler.y, 0);
                     }
 
                     let activeController = null;
