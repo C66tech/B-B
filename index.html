@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.3</title>
+    <title>ARkanium v3.8.4</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.3
+                            v3.8.4
                         </span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.3";
+        const VERSION = "v3.8.4";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -233,7 +233,7 @@
         const ROW_COLORS = [0xff2a55, 0xff00d4, 0xffea00, 0x00d8ff, 0x00ff88, 0x9900ff];
 
         class QuestPyrotechnicParticlePool {
-            constructor(parentGroup, maxParticles = 400) {
+            constructor(parentGroup, maxParticles = 300) {
                 this.parentGroup = parentGroup;
                 this.pool = [];
                 this.sharedGeo = new THREE.BoxGeometry(0.022, 0.022, 0.022);
@@ -253,7 +253,7 @@
             }
 
             explode(position, colorHex) {
-                const count = 22; let spawned = 0;
+                const count = 18; let spawned = 0;
                 for (let i = 0; i < this.pool.length && spawned < count; i++) {
                     const p = this.pool[i];
                     if (!p.active) {
@@ -261,9 +261,9 @@
                         const isSpark = Math.random() < 0.25;
                         p.mat.color.setHex(isSpark ? (Math.random() < 0.5 ? 0xffffff : 0xffea00) : colorHex);
                         p.mat.opacity = 1.0;
-                        const duration = 0.30 + Math.random() * 0.25;
+                        const duration = 0.28 + Math.random() * 0.22;
                         p.life = duration; p.maxLife = duration;
-                        p.velocity.set((Math.random() - 0.5) * 3.6, (Math.random() - 0.2) * 3.4, (Math.random() - 0.5) * 2.2);
+                        p.velocity.set((Math.random() - 0.5) * 3.4, (Math.random() - 0.2) * 3.2, (Math.random() - 0.5) * 2.0);
                         p.rotVelocity.set((Math.random() - 0.5) * 12.0, (Math.random() - 0.5) * 12.0, (Math.random() - 0.5) * 12.0);
                         spawned++;
                     }
@@ -271,7 +271,7 @@
             }
 
             fireworksExplode(position) {
-                const count = 100; let spawned = 0;
+                const count = 80; let spawned = 0;
                 const colors = [0x00f0ff, 0xff00d4, 0xffea00, 0x00ff88, 0xff2a55, 0xffffff];
                 for (let i = 0; i < this.pool.length && spawned < count; i++) {
                     const p = this.pool[i];
@@ -330,7 +330,6 @@
                 this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
 
                 this.activeBricksCount = 0;
-                this.debugBricksLeft = 0; 
 
                 this.fieldScale = 1.0;
                 this.fieldPosY = 0.0;
@@ -374,6 +373,10 @@
                 this.rayDir = new THREE.Vector3();
                 this.targetPoint = new THREE.Vector3();
 
+                // Cache UI state per evitare redraw inutili della Canvas GPU
+                this.lastRenderedScore = -1;
+                this.lastRenderedLives = -1;
+
                 this.initScene();
                 this.initLighting();
                 this.initField();
@@ -390,7 +393,6 @@
                 this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
             }
 
-            // CONTROLLO RICORSIVO PER VERIFICARE SE UN OGGETTO È REALE E VISIBILE IN SCENA
             isVisibleInScene(obj) {
                 let curr = obj;
                 while (curr) {
@@ -424,9 +426,6 @@
                 const dirLight = new THREE.DirectionalLight(0x00f0ff, 1.2);
                 dirLight.position.set(2, 4, 2);
                 this.scene.add(dirLight);
-                const pointLight = new THREE.PointLight(0xff00d4, 1.5, 8);
-                pointLight.position.set(0, 2.0, -2.5);
-                this.scene.add(pointLight);
             }
 
             initField() {
@@ -460,45 +459,51 @@
                 this.initInGameStats();
             }
 
+            // RISOLUZIONE RADDOPPIATA (2048x128) - NESSUNA SOVRAPPOSIZIONE
             initInGameStats() {
                 this.inGameStatsCanvas = document.createElement('canvas');
-                this.inGameStatsCanvas.width = 1024;
+                this.inGameStatsCanvas.width = 2048;
                 this.inGameStatsCanvas.height = 128;
                 this.inGameStatsCtx = this.inGameStatsCanvas.getContext('2d');
                 this.inGameStatsTexture = new THREE.CanvasTexture(this.inGameStatsCanvas);
                 
-                const geo = new THREE.PlaneGeometry(FIELD.width, 0.20); 
+                const geo = new THREE.PlaneGeometry(FIELD.width, 0.18); 
                 const mat = new THREE.MeshBasicMaterial({ map: this.inGameStatsTexture, transparent: true });
                 this.inGameStatsMesh = new THREE.Mesh(geo, mat);
                 
-                this.inGameStatsMesh.position.set(0, FIELD.bottomY - 0.12, 0); 
+                this.inGameStatsMesh.position.set(0, FIELD.bottomY - 0.11, 0); 
                 this.fieldGroup.add(this.inGameStatsMesh);
             }
 
-            updateInGameStats() {
+            updateInGameStats(force = false) {
                 if (!this.inGameStatsCtx) return;
+                if (!force && this.lastRenderedScore === this.score && this.lastRenderedLives === this.lives) return;
+
+                this.lastRenderedScore = this.score;
+                this.lastRenderedLives = this.lives;
+
                 const ctx = this.inGameStatsCtx;
-                ctx.clearRect(0, 0, 1024, 128);
+                ctx.clearRect(0, 0, 2048, 128);
                 
-                ctx.fillStyle = 'rgba(6, 10, 23, 0.85)';
+                ctx.fillStyle = 'rgba(6, 10, 23, 0.88)';
                 ctx.beginPath();
-                ctx.roundRect(0, 0, 1024, 128, 20);
+                ctx.roundRect(0, 0, 2048, 128, 24);
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
-                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+                ctx.lineWidth = 6;
                 ctx.stroke();
 
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
-                ctx.font = 'bold 50px sans-serif';
+                ctx.font = 'bold 38px sans-serif';
                 ctx.fillStyle = '#ff2a55';
                 const hearts = '❤️ '.repeat(Math.max(0, this.lives));
-                ctx.fillText(`LIVES: ${hearts}`, 30, 64);
+                ctx.fillText(`LIVES: ${hearts}`, 40, 64);
                 
                 ctx.textAlign = 'right';
                 ctx.fillStyle = '#00ff88';
-                ctx.font = 'bold 64px monospace';
-                ctx.fillText(`SCORE: ${this.score.toString().padStart(6, '0')}`, 994, 64);
+                ctx.font = 'bold 52px monospace';
+                ctx.fillText(`SCORE: ${this.score.toString().padStart(6, '0')}`, 2008, 64);
                 
                 this.inGameStatsTexture.needsUpdate = true;
             }
@@ -629,6 +634,7 @@
                 this.resetBallAndPaddle();
             }
 
+            // RIMOZIONE POINTLIGHT DA OGNI PALLA PER ELIMINARE SOVRACCARICO MULTI-BALL
             createBallInstance(x, y, velX = 0, velY = 0) {
                 const bMat = new THREE.MeshStandardMaterial({
                     color: 0xffffff, emissive: this.isExplosiveActive ? 0xff0000 : 0x00f0ff,
@@ -637,10 +643,7 @@
                 const mesh = new THREE.Mesh(this.sharedBallGeo, bMat);
                 mesh.position.set(x, y, 0);
 
-                const light = new THREE.PointLight(this.isExplosiveActive ? 0xff0000 : 0x00ffff, 1.5, 1.5);
-                mesh.add(light);
                 this.fieldGroup.add(mesh);
-
                 return { mesh, vel: new THREE.Vector3(velX, velY, 0) };
             }
 
@@ -959,6 +962,7 @@
                 this.scene.add(this.levelSummaryGroup);
             }
 
+            // RIMOZIONE INFO DEBUG COME RICHIESTO
             renderLevelSummaryCanvas() {
                 if (!this.levelSummaryCtx) return;
                 const ctx = this.levelSummaryCtx;
@@ -1011,15 +1015,11 @@
                 ctx.textAlign = 'center'; ctx.fillStyle = '#cbd5e1'; ctx.font = '24px sans-serif';
                 ctx.fillText(`Total Items Collected in Level: ${totalCollected}`, w / 2, 480);
 
-                ctx.fillStyle = '#ff00d4'; ctx.font = 'bold 24px monospace'; ctx.shadowBlur = 0;
-                ctx.fillText(`[DEBUG] BRICKS REMAINING AT COMPLETION: ${this.debugBricksLeft}`, w / 2, 530);
-
                 this.levelSummaryTexture.needsUpdate = true;
             }
 
             handleLevelCompletedSequence(lastBrickPosition) {
                 this.isLevelTransitioning = true;
-                this.debugBricksLeft = this.activeBricksCount; 
                 this.particlePool.fireworksExplode(lastBrickPosition);
                 audio.bombExplosion();
 
@@ -1284,7 +1284,6 @@
                 this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
-                // FILTRA GLI OGGETTI INTERATTIVI VERIFICANDO LA VISIBILITÀ EFFETTIVA IN SCENA
                 const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
                 const validIntersects = intersects.filter(hit => this.isVisibleInScene(hit.object));
 
@@ -1395,6 +1394,7 @@
 
                 this.buildBricksForLevel(this.level);
                 this.resetBallAndPaddle();
+                this.updateInGameStats(true);
                 this.renderHUDCanvas();
                 this.startLevelCountdown(() => { this.launchBall(); });
             }
@@ -1415,6 +1415,7 @@
                     
                     this.buildBricksForLevel(this.level);
                     this.resetBallAndPaddle();
+                    this.updateInGameStats(true);
                     this.renderHUDCanvas();
                     this.startLevelCountdown(() => { 
                         this.launchBall(); 
@@ -1468,7 +1469,6 @@
                         this.refreshPaddleVisuals();
                         showToast('Fire Mode Expired', 'fa-fire-extinguisher');
                     }
-                    this.renderHUDCanvas();
                 }
 
                 if (this.isExplosiveActive) {
@@ -1478,12 +1478,10 @@
                         this.isExplosiveActive = false;
                         this.balls.forEach(b => {
                             b.mesh.material.emissive.setHex(0x00f0ff);
-                            if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0x00ffff);
                         });
                         this.refreshPaddleVisuals();
                         showToast('Explosive Mode Expired', 'fa-bomb');
                     }
-                    this.renderHUDCanvas();
                 }
 
                 if (this.hasBarrier) {
@@ -1500,18 +1498,26 @@
                     } else {
                         this.setHazardBarState(true);
                     }
-                    this.renderHUDCanvas();
                 }
 
-                const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
+                // DIMENSIONI PER CONTROLLO COLLISIONE AABB DIRETTO A 60 FPS
+                const padX = this.paddleMesh.position.x;
+                const padY = this.paddleMesh.position.y;
+                const padMinX = padX - this.paddleWidth / 2;
+                const padMaxX = padX + this.paddleWidth / 2;
+                const padMinY = padY - 0.03;
+                const padMaxY = padY + 0.03;
 
+                // --- POWER UPS COLLECTION ---
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
                     p.rotation.y += dt * 3.0;
-                    const pBox = new THREE.Box3().setFromObject(p);
-                    
-                    if (pBox.intersectsBox(padBox)) {
+
+                    const px = p.position.x;
+                    const py = p.position.y;
+
+                    if (px >= padMinX && px <= padMaxX && py >= padMinY && py <= padMaxY) {
                         audio.powerUpPickup();
                         const type = p.userData.type;
 
@@ -1544,7 +1550,6 @@
                             this.isExplosiveActive = true;
                             this.balls.forEach(b => {
                                 b.mesh.material.emissive.setHex(0xff0000);
-                                if (b.mesh.children[0]) b.mesh.children[0].color.setHex(0xff0000);
                             });
                             this.updatePaddleVisuals('EXPLOSIVE');
                             showToast('💥 BONUS X: Explosive Area Impact!', 'fa-burst');
@@ -1575,7 +1580,7 @@
                         this.fieldGroup.remove(p);
                         p.geometry.dispose(); p.material.dispose();
                         this.activePowerUps.splice(i, 1);
-                        this.renderHUDCanvas();
+                        this.updateInGameStats();
                         continue;
                     }
 
@@ -1585,6 +1590,10 @@
                         this.activePowerUps.splice(i, 1);
                     }
                 }
+
+                // --- BULLET PHYSICS (AABB OTTIMIZZATO) ---
+                const halfBrickW = BRICK_W / 2;
+                const halfBrickH = BRICK_H / 2;
 
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
                     const bullet = this.bullets[i];
@@ -1597,7 +1606,8 @@
                         continue;
                     }
 
-                    const bulletBox = new THREE.Box3().setFromObject(bullet);
+                    const buX = bullet.position.x;
+                    const buY = bullet.position.y;
                     const bricks = this.bricksGroup.children;
                     let bulletHit = false;
 
@@ -1605,8 +1615,11 @@
                         const b = bricks[j];
                         if (b.userData.isDestroyed) continue; 
 
-                        const brickBox = new THREE.Box3().setFromObject(b);
-                        if (brickBox.intersectsBox(bulletBox)) {
+                        const bx = b.position.x;
+                        const by = b.position.y;
+
+                        if (buX >= bx - halfBrickW && buX <= bx + halfBrickW &&
+                            buY >= by - halfBrickH && buY <= by + halfBrickH) {
                             
                             const brickPos = b.position.clone();
 
@@ -1634,7 +1647,7 @@
                                 if (!this.isExplosiveActive) {
                                     this.particlePool.explode(brickPos, b.userData.colorHex);
                                 }
-                                this.renderHUDCanvas();
+                                this.updateInGameStats();
                             }
                             break;
                         }
@@ -1647,6 +1660,7 @@
                     }
                 }
 
+                // --- BALL PHYSICS (AABB MATEMATICO AD ALTA FLUIDITÀ) ---
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
 
                 for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
@@ -1657,17 +1671,20 @@
                     bMesh.position.x += bVel.x * dt;
                     bMesh.position.y += bVel.y * dt;
 
-                    if (bMesh.position.x - halfCube <= -halfW) {
+                    const ballX = bMesh.position.x;
+                    const ballY = bMesh.position.y;
+
+                    if (ballX - halfCube <= -halfW) {
                         bMesh.position.x = -halfW + halfCube; bVel.x = Math.abs(bVel.x); audio.wallHit();
-                    } else if (bMesh.position.x + halfCube >= halfW) {
+                    } else if (ballX + halfCube >= halfW) {
                         bMesh.position.x = halfW - halfCube; bVel.x = -Math.abs(bVel.x); audio.wallHit();
                     }
 
-                    if (bMesh.position.y + halfCube >= FIELD.topY) {
+                    if (ballY + halfCube >= FIELD.topY) {
                         bMesh.position.y = FIELD.topY - halfCube; bVel.y = -Math.abs(bVel.y); audio.wallHit();
                     }
 
-                    if (bMesh.position.y - halfCube <= FIELD.bottomY) {
+                    if (ballY - halfCube <= FIELD.bottomY) {
                         if (this.hasBarrier) {
                             bMesh.position.y = FIELD.bottomY + halfCube + 0.03;
                             bVel.y = Math.abs(bVel.y);
@@ -1685,7 +1702,8 @@
                                     this.triggerGameOver();
                                 } else {
                                     showToast(`Ball Lost! Lives Remaining: ${this.lives}`, 'fa-heart-crack');
-                                    this.resetBallAndPaddle(); this.renderHUDCanvas();
+                                    this.resetBallAndPaddle(); 
+                                    this.updateInGameStats(true);
                                     this.startLevelCountdown(() => { this.launchBall(); });
                                 }
                                 return;
@@ -1694,23 +1712,29 @@
                         }
                     }
 
-                    const ballBox = new THREE.Box3().setFromObject(bMesh);
-                    if (padBox.intersectsBox(ballBox) && bVel.y < 0) {
+                    // Impatto Paddle AABB
+                    if (ballY - halfCube <= padMaxY && ballY + halfCube >= padMinY &&
+                        ballX + halfCube >= padMinX && ballX - halfCube <= padMaxX && bVel.y < 0) {
+                        
                         bVel.y = Math.abs(bVel.y);
-                        const hitOffset = (bMesh.position.x - this.paddleMesh.position.x) / (this.paddleWidth / 2);
+                        const hitOffset = (ballX - padX) / (this.paddleWidth / 2);
                         const currentSpeed = this.baseBallSpeed * this.speedMultiplier;
                         bVel.x = hitOffset * (currentSpeed * 0.85);
                         bVel.normalize().multiplyScalar(currentSpeed);
                         audio.paddleHit();
                     }
 
+                    // Impatto Mattoni AABB
                     const bricks = this.bricksGroup.children;
                     for (let i = bricks.length - 1; i >= 0; i--) {
                         const b = bricks[i];
                         if (b.userData.isDestroyed) continue; 
-                        const brickBox = new THREE.Box3().setFromObject(b);
+                        
+                        const bx = b.position.x;
+                        const by = b.position.y;
 
-                        if (brickBox.intersectsBox(ballBox)) {
+                        if (ballX + halfCube >= bx - halfBrickW && ballX - halfCube <= bx + halfBrickW &&
+                            ballY + halfCube >= by - halfBrickH && ballY - halfCube <= by + halfBrickH) {
                             
                             const brickPos = b.position.clone();
                             bVel.y = -bVel.y;
@@ -1747,7 +1771,7 @@
                                 if (!this.isExplosiveActive) {
                                     this.particlePool.explode(brickPos, b.userData.colorHex);
                                 }
-                                this.renderHUDCanvas();
+                                this.updateInGameStats();
                             }
                             break;
                         }
@@ -1792,14 +1816,12 @@
                                         this.fieldScale += axisX * 0.8 * dt;
                                         this.fieldScale = THREE.MathUtils.clamp(this.fieldScale, 0.4, 2.5);
                                         this.fieldGroup.scale.setScalar(this.fieldScale);
-                                        this.renderHUDCanvas();
                                     }
 
                                     if (Math.abs(axisY) > 0.20) {
                                         this.fieldPosY -= axisY * 0.8 * dt;
                                         this.fieldPosY = THREE.MathUtils.clamp(this.fieldPosY, -0.8, 1.2);
                                         this.fieldGroup.position.set(0, this.fieldPosY, FIELD.zPos);
-                                        this.renderHUDCanvas();
                                     }
                                 }
                             }
