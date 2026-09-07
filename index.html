@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARkanium v3.8.2</title>
+    <title>ARkanium v3.8.3</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,7 +72,7 @@
                             ARkanium
                         </h1>
                         <span class="bg-cyan-950/80 text-cyan-300 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-cyan-500/40">
-                            v3.8.2
+                            v3.8.3
                         </span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
     <script>
         const GAME_TITLE = "ARkanium";
-        const VERSION = "v3.8.2";
+        const VERSION = "v3.8.3";
         const MAX_LEVELS = 10;
         const INITIAL_PRNG_SEED = 20260906;
 
@@ -329,7 +329,6 @@
                 this.levelStartScore = 0;
                 this.levelBonusesCollected = { 'F': 0, '$': 0, 'X': 0, 'B': 0, 'M': 0, 'S': 0, 'L': 0 };
 
-                // NUOVI FLAG DI SICUREZZA PER CONTEGGIO
                 this.activeBricksCount = 0;
                 this.debugBricksLeft = 0; 
 
@@ -389,6 +388,16 @@
                 this.initWebXRLauncher();
 
                 this.renderer.setAnimationLoop((time, frame) => this.render(time, frame));
+            }
+
+            // CONTROLLO RICORSIVO PER VERIFICARE SE UN OGGETTO È REALE E VISIBILE IN SCENA
+            isVisibleInScene(obj) {
+                let curr = obj;
+                while (curr) {
+                    if (!curr.visible) return false;
+                    curr = curr.parent;
+                }
+                return true;
             }
 
             initScene() {
@@ -451,7 +460,6 @@
                 this.initInGameStats();
             }
 
-            // PANNELLO STATISTICHE IN GIOCO (Appena sotto la hazard bar)
             initInGameStats() {
                 this.inGameStatsCanvas = document.createElement('canvas');
                 this.inGameStatsCanvas.width = 1024;
@@ -568,7 +576,6 @@
                         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
                         mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
 
-                        // Usa isDestroyed in sostituzione dell'inaffidabile controllo live-array
                         mesh.userData = {
                             isDestroyed: false, row: r, col: c, colorHex: colorHex,
                             points: (rows - r) * 10,
@@ -579,7 +586,6 @@
                     }
                 }
 
-                // Sicurezza assoluta: conta i mattoni reali generati.
                 this.activeBricksCount = createdBricks.length;
 
                 const numBonuses = 3 + Math.floor(levelNum / 2);
@@ -728,12 +734,12 @@
 
                 for (let j = bricks.length - 1; j >= 0; j--) {
                     const b = bricks[j];
-                    if (b.userData.isDestroyed) continue; // Salta chi è già gestito!
+                    if (b.userData.isDestroyed) continue; 
 
                     const dist = b.position.distanceTo(centerPos);
                     if (dist <= radius) {
-                        b.userData.isDestroyed = true; // Impedisce conteggi multipli
-                        this.activeBricksCount--; // Decurto contatore esplicito
+                        b.userData.isDestroyed = true; 
+                        this.activeBricksCount--; 
                         b.visible = false;
 
                         this.particlePool.explode(b.position, b.userData.colorHex);
@@ -1005,7 +1011,6 @@
                 ctx.textAlign = 'center'; ctx.fillStyle = '#cbd5e1'; ctx.font = '24px sans-serif';
                 ctx.fillText(`Total Items Collected in Level: ${totalCollected}`, w / 2, 480);
 
-                // INFO DEBUG PER VARIABILE MATTONI
                 ctx.fillStyle = '#ff00d4'; ctx.font = 'bold 24px monospace'; ctx.shadowBlur = 0;
                 ctx.fillText(`[DEBUG] BRICKS REMAINING AT COMPLETION: ${this.debugBricksLeft}`, w / 2, 530);
 
@@ -1014,7 +1019,7 @@
 
             handleLevelCompletedSequence(lastBrickPosition) {
                 this.isLevelTransitioning = true;
-                this.debugBricksLeft = this.activeBricksCount; // Salviamo lo stato del nuovo contatore per la schermata stats
+                this.debugBricksLeft = this.activeBricksCount; 
                 this.particlePool.fireworksExplode(lastBrickPosition);
                 audio.bombExplosion();
 
@@ -1089,7 +1094,6 @@
             }
 
             renderHUDCanvas() {
-                // Aggiorna simultaneamente la UI di base sul campo
                 this.updateInGameStats();
 
                 if (!this.hudCtx) return;
@@ -1105,7 +1109,6 @@
                 
                 ctx.textAlign = 'left'; ctx.font = 'bold 30px monospace';
 
-                // Posizioni scalate su Y per rimuovere i testi di Vite e Punteggio
                 ctx.fillStyle = '#ffea00'; ctx.fillText(`GAME STATE   : ${this.gameState}`, 80, 200);
                 ctx.fillStyle = '#00f0ff'; ctx.fillText(`CURRENT LEVEL: ${this.level} / ${MAX_LEVELS}`, 80, 250);
                 
@@ -1281,11 +1284,14 @@
                 this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
+                // FILTRA GLI OGGETTI INTERATTIVI VERIFICANDO LA VISIBILITÀ EFFETTIVA IN SCENA
                 const intersects = this.raycaster.intersectObjects(this.interactiveObjects, true);
-                if (intersects.length > 0) {
-                    let hitObj = intersects[0].object;
+                const validIntersects = intersects.filter(hit => this.isVisibleInScene(hit.object));
+
+                if (validIntersects.length > 0) {
+                    let hitObj = validIntersects[0].object;
                     while (hitObj && !hitObj.userData.action && hitObj.parent) hitObj = hitObj.parent;
-                    if (hitObj && hitObj.userData.action) {
+                    if (hitObj && hitObj.userData.action && this.isVisibleInScene(hitObj)) {
                         audio.uiClick(); this.handleAction(hitObj.userData.action); return;
                     }
                 }
@@ -1301,8 +1307,8 @@
                 this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
                 this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.tempMatrix);
 
-                const intersectsLeft = this.raycaster.intersectObject(this.hudMesh, true);
-                const intersectsRight = this.raycaster.intersectObject(this.rightHudMesh, true);
+                const intersectsLeft = this.raycaster.intersectObject(this.hudMesh, true).filter(hit => this.isVisibleInScene(hit.object));
+                const intersectsRight = this.raycaster.intersectObject(this.rightHudMesh, true).filter(hit => this.isVisibleInScene(hit.object));
 
                 let targetGroup = null;
                 if (intersectsLeft.length > 0) targetGroup = this.hudGroup;
@@ -1499,7 +1505,6 @@
 
                 const padBox = new THREE.Box3().setFromObject(this.paddleMesh);
 
-                // --- POWER UPS COLLECTION ---
                 for (let i = this.activePowerUps.length - 1; i >= 0; i--) {
                     const p = this.activePowerUps[i];
                     p.position.y -= 0.85 * dt;
@@ -1581,7 +1586,6 @@
                     }
                 }
 
-                // --- BULLET PHYSICS ---
                 for (let i = this.bullets.length - 1; i >= 0; i--) {
                     const bullet = this.bullets[i];
                     bullet.position.y += 4.5 * dt;
@@ -1599,7 +1603,7 @@
 
                     for (let j = bricks.length - 1; j >= 0; j--) {
                         const b = bricks[j];
-                        if (b.userData.isDestroyed) continue; // Salta il check se già distrutto nel frame
+                        if (b.userData.isDestroyed) continue; 
 
                         const brickBox = new THREE.Box3().setFromObject(b);
                         if (brickBox.intersectsBox(bulletBox)) {
@@ -1607,11 +1611,10 @@
                             const brickPos = b.position.clone();
 
                             if (this.isExplosiveActive) {
-                                // gestisce da sè il flag isDestroyed e activeBricksCount per i mattoni coinvolti
                                 this.triggerAreaExplosion(brickPos);
                             } else {
-                                b.userData.isDestroyed = true; // Flag di sicurezza
-                                this.activeBricksCount--; // Scala variabile numerica
+                                b.userData.isDestroyed = true; 
+                                this.activeBricksCount--; 
 
                                 b.visible = false;
                                 if (b.userData.hasBonus) this.spawnPowerUp(brickPos, b.userData.hasBonus);
@@ -1625,7 +1628,7 @@
 
                             if (this.activeBricksCount <= 0) {
                                 this.handleLevelCompletedSequence(brickPos);
-                                return; // STOP Fisica
+                                return; 
                             } else {
                                 audio.gunshot();
                                 if (!this.isExplosiveActive) {
@@ -1644,7 +1647,6 @@
                     }
                 }
 
-                // --- BALL PHYSICS ---
                 const halfCube = this.ballSide / 2; const halfW = FIELD.width / 2;
 
                 for (let bIdx = this.balls.length - 1; bIdx >= 0; bIdx--) {
@@ -1705,7 +1707,7 @@
                     const bricks = this.bricksGroup.children;
                     for (let i = bricks.length - 1; i >= 0; i--) {
                         const b = bricks[i];
-                        if (b.userData.isDestroyed) continue; // Check sicurezza
+                        if (b.userData.isDestroyed) continue; 
                         const brickBox = new THREE.Box3().setFromObject(b);
 
                         if (brickBox.intersectsBox(ballBox)) {
@@ -1716,8 +1718,8 @@
                             if (this.isExplosiveActive) {
                                 this.triggerAreaExplosion(brickPos);
                             } else {
-                                b.userData.isDestroyed = true; // Flag 
-                                this.activeBricksCount--; // Numerico effettivo decrementato
+                                b.userData.isDestroyed = true; 
+                                this.activeBricksCount--; 
 
                                 b.visible = false;
                                 if (b.userData.hasBonus) this.spawnPowerUp(brickPos, b.userData.hasBonus);
@@ -1739,7 +1741,7 @@
 
                             if (this.activeBricksCount <= 0) {
                                 this.handleLevelCompletedSequence(brickPos);
-                                return; // STOP
+                                return; 
                             } else {
                                 audio.gunshot();
                                 if (!this.isExplosiveActive) {
